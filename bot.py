@@ -97,46 +97,6 @@ async def cleanup_messages(chat_id: int, msg_ids: list[int]):
         except:
             pass
 
-# ================= TOPIC WRITE GUARD (FAQAT ODDIY USER UCHUN) =================
-from aiogram.filters import StateFilter
-
-@dp.message(
-    F.chat.id == MARKET_GROUP_ID,
-    StateFilter(None)   # 🔥 FAQAT FSM YO‘Q PAYTDA
-)
-async def topic_write_guard(message: Message):
-    # Topic bo‘lmasa — tegma
-    if message.message_thread_id is None:
-        return
-
-    # Muhokama topic — ruxsat
-    if message.message_thread_id == DISCUSSION_TOPIC_ID:
-        return
-
-    # Admin bo‘lsa — ruxsat
-    if await is_admin(message.chat.id, message.from_user.id):
-        return
-
-    # Buyruqlarni tegma
-    if message.text and message.text.startswith("/"):
-        return
-
-    # Oddiy user yozdi — o‘chiramiz
-    try:
-        await message.delete()
-    except:
-        pass
-
-    try:
-        warn = await message.answer(
-            "❌ Bu bo‘limda faqat buyurtma berish mumkin.\n"
-            "💬 Muhokama uchun *Muhokama chat*dan foydalaning.",
-            parse_mode="Markdown"
-        )
-        await asyncio.sleep(3)
-        await warn.delete()
-    except:
-        pass
 
 # ================= /add_product =================
 @dp.message(Command("add_product"))
@@ -293,7 +253,41 @@ async def order_finish(message: Message, state: FSMContext):
 
     await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
     await state.clear()
+# ================= TOPIC WRITE GUARD =================
+from aiogram.filters import StateFilter
 
+@dp.message(
+    F.chat.id == MARKET_GROUP_ID,
+    StateFilter(None)
+)
+async def topic_write_guard(message: Message):
+    if message.message_thread_id is None:
+        return
+
+    if message.message_thread_id == DISCUSSION_TOPIC_ID:
+        return
+
+    if message.text and message.text.startswith("/"):
+        return
+
+    if await is_admin(message.chat.id, message.from_user.id):
+        return
+
+    try:
+        await message.delete()
+    except:
+        pass
+
+    try:
+        warn = await message.answer(
+            "❌ Bu bo‘limda faqat buyurtma berish mumkin.\n"
+            "💬 Muhokama uchun *Muhokama chat*dan foydalaning.",
+            parse_mode="Markdown"
+        )
+        await asyncio.sleep(3)
+        await warn.delete()
+    except:
+        pass
 # ================= RUN =================
 async def main():
     await dp.start_polling(bot)
