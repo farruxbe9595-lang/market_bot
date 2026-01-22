@@ -253,7 +253,6 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
 import os
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -269,4 +268,5 @@ def run_server():
     server = HTTPServer(("0.0.0.0", port), SimpleHandler)
     server.serve_forever()
 
-Thread(target=run_server).start()    
+    Thread(target=run_server).start()    
+    asyncio.run(main())
