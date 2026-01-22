@@ -22,11 +22,15 @@ from aiogram.fsm.context import FSMContext
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN topilmadi!")
+
 MARKET_GROUP_ID = -1003618675735
 ADMIN_CHANNEL_ID = -1003631320685
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
+
 
 # ================= TOPIC RULES =================
 DISCUSSION_TOPIC_ID = 1  # Muhokama chat
@@ -102,6 +106,9 @@ async def cleanup_messages(chat_id: int, msg_ids: list[int]):
     ~F.text.startswith("/")
 )
 async def topic_write_guard(message: Message):
+    state = dp.fsm.get_context(bot, message.chat.id, message.from_user.id)
+    if await state.get_state() is not None:
+        return
 
     if message.message_thread_id is None:
         return
