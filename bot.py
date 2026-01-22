@@ -99,38 +99,35 @@ async def cleanup_messages(chat_id: int, msg_ids: list[int]):
             pass
 
 # ================= TOPIC WRITE CONTROL (TO‘G‘RILANGAN) =================
-@dp.message(
-    F.chat.id == MARKET_GROUP_ID,
-    F.from_user.is_bot == False
-)
+@dp.message(F.chat.id == MARKET_GROUP_ID)
 async def topic_write_guard(message: Message, state: FSMContext):
-    # FSM ishlayapti — aralashmaymiz
-    if await state.get_state() is not None:
+    # 🔥 Agar FSM jarayoni bo‘lsa — UMUMAN TEGMA
+    current_state = await state.get_state()
+    if current_state is not None:
         return
 
-    # Topic bo‘lmasa — chiqib ket
+    # Topic bo‘lmasa — aralashmaymiz
     if message.message_thread_id is None:
         return
 
-    topic_id = message.message_thread_id
-
     # Muhokama topic — ruxsat
-    if topic_id == DISCUSSION_TOPIC_ID:
+    if message.message_thread_id == DISCUSSION_TOPIC_ID:
         return
 
     # Admin bo‘lsa — ruxsat
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
-    # Oddiy user yozdi — o‘chiramiz
+    # ❌ Oddiy user topicda yozdi — o‘chiramiz
     try:
         await message.delete()
     except:
         pass
 
+    # ⚠️ Qisqa ogohlantirish
     try:
         warn = await message.answer(
-            "❌ Bu bo‘limda faqat buyurtma berishingiz mumkin.\n"
+            "❌ Bu bo‘limda faqat *buyurtma berish* mumkin.\n"
             "💬 Muhokama uchun *Muhokama chat*dan foydalaning.",
             parse_mode="Markdown"
         )
