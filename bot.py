@@ -105,15 +105,17 @@ async def cleanup_messages(chat_id: int, msg_ids: list[int]):
         except:
             pass
 # ================= TOPIC WRITE CONTROL =================
-@dp.message(F.chat.id == MARKET_GROUP_ID)
+@dp.message(
+    F.chat.id == MARKET_GROUP_ID,
+    ~F.text.startswith("/")
+)
 async def topic_write_guard(message: Message):
-    # Agar topic bo‘lmasa (oddiy chat) — tegmaymiz
     if message.message_thread_id is None:
         return
 
     topic_id = message.message_thread_id
 
-    # Muhokama topic — hammaga ruxsat
+    # Muhokama — hammaga ruxsat
     if topic_id == DISCUSSION_TOPIC_ID:
         return
 
@@ -121,21 +123,26 @@ async def topic_write_guard(message: Message):
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
-    # ❌ Oddiy user admin-only topicda yozdi
+    # Oddiy user admin-only topicda yozdi
     try:
         await message.delete()
     except:
         pass
 
-    # (ixtiyoriy) ogohlantirish
     try:
-        await message.answer(
-            "❌ Bu bo‘limda faqat adminlar yozishi mumkin.\n"
-            "💬 Muhokama uchun *Muhokama chat*dan foydalaning.",
-            parse_mode="Markdown"
-        )
-    except:
-        pass
+    warn = await message.answer(
+        "❌ Bu bo‘limda faqat adminlar yozishi mumkin.\n"
+        "💬 Muhokama uchun *Muhokama chat*dan foydalaning.",
+        parse_mode="Markdown"
+    )
+
+    await asyncio.sleep(3)
+    await warn.delete()
+
+except:
+    pass
+
+
 
 # ================= /add_product =================
 @dp.message(Command("add_product"))
