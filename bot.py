@@ -31,7 +31,6 @@ ADMIN_CHANNEL_ID = -1003631320685
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
-
 # ================= TOPIC RULES =================
 DISCUSSION_TOPIC_ID = 1  # Muhokama chat
 
@@ -98,29 +97,30 @@ async def cleanup_messages(chat_id: int, msg_ids: list[int]):
         except:
             pass
 
-# ================= TOPIC WRITE CONTROL (TO‘G‘RILANGAN) =================
+# ================= TOPIC WRITE GUARD (FAQAT ODDIY USER UCHUN) =================
 @dp.message(
     F.chat.id == MARKET_GROUP_ID,
-    ~F.text.startswith("/")   # 🔥 BUYRUQLARGA TEGMA
+    F.text,
+    ~F.text.startswith("/")
 )
 async def topic_write_guard(message: Message, state: FSMContext):
-    # FSM ishlayapti — umuman aralashma
+    # FSM ishlayapti — TEGMA
     if await state.get_state() is not None:
         return
 
-    # Topic bo‘lmasa — aralashma
+    # Topic yo‘q — TEGMA
     if message.message_thread_id is None:
         return
 
-    # Muhokama topic — ruxsat
+    # Muhokama topic — RUXSAT
     if message.message_thread_id == DISCUSSION_TOPIC_ID:
         return
 
-    # Admin bo‘lsa — ruxsat
+    # Admin bo‘lsa — RUXSAT
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
-    # Oddiy user yozdi — o‘chiramiz
+    # Oddiy user yozdi — O‘CHIRAMIZ
     try:
         await message.delete()
     except:
@@ -217,6 +217,7 @@ async def cancel_admin(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     await cleanup_messages(call.message.chat.id, data.get("msgs", []))
     await state.clear()
+    await call.answer("Bekor qilindi")
 
 # ================= ORDER FLOW (O‘ZGARMAGAN) =================
 @dp.message(CommandStart())
