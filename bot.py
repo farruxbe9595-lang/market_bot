@@ -102,12 +102,10 @@ from aiogram.filters import StateFilter
 
 @dp.message(
     F.chat.id == MARKET_GROUP_ID,
-    F.text,
-    ~F.text.startswith("/"),
     StateFilter(None)   # 🔥 FAQAT FSM YO‘Q PAYTDA
 )
 async def topic_write_guard(message: Message):
-    # Topic yo‘q — tegma
+    # Topic bo‘lmasa — tegma
     if message.message_thread_id is None:
         return
 
@@ -117,6 +115,10 @@ async def topic_write_guard(message: Message):
 
     # Admin bo‘lsa — ruxsat
     if await is_admin(message.chat.id, message.from_user.id):
+        return
+
+    # Buyruqlarni tegma
+    if message.text and message.text.startswith("/"):
         return
 
     # Oddiy user yozdi — o‘chiramiz
