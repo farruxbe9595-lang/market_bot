@@ -98,29 +98,28 @@ async def cleanup_messages(chat_id: int, msg_ids: list[int]):
             pass
 
 # ================= TOPIC WRITE GUARD (FAQAT ODDIY USER UCHUN) =================
+from aiogram.filters import StateFilter
+
 @dp.message(
     F.chat.id == MARKET_GROUP_ID,
     F.text,
-    ~F.text.startswith("/")
+    ~F.text.startswith("/"),
+    StateFilter(None)   # 🔥 FAQAT FSM YO‘Q PAYTDA
 )
-async def topic_write_guard(message: Message, state: FSMContext):
-    # FSM ishlayapti — TEGMA
-    if await state.get_state() is not None:
-        return
-
-    # Topic yo‘q — TEGMA
+async def topic_write_guard(message: Message):
+    # Topic yo‘q — tegma
     if message.message_thread_id is None:
         return
 
-    # Muhokama topic — RUXSAT
+    # Muhokama topic — ruxsat
     if message.message_thread_id == DISCUSSION_TOPIC_ID:
         return
 
-    # Admin bo‘lsa — RUXSAT
+    # Admin bo‘lsa — ruxsat
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
-    # Oddiy user yozdi — O‘CHIRAMIZ
+    # Oddiy user yozdi — o‘chiramiz
     try:
         await message.delete()
     except:
