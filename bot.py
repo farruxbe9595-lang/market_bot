@@ -253,31 +253,37 @@ async def order_finish(message: Message, state: FSMContext):
 
     await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
     await state.clear()
-# ================= TOPIC WRITE GUARD =================
 from aiogram.filters import StateFilter
 
+# ================= TOPIC WRITE GUARD =================
 @dp.message(
     F.chat.id == MARKET_GROUP_ID,
-    StateFilter(None)
+    StateFilter(None)   # 🔥 FSM YO‘Q PAYTDA GINA ISHLAYDI
 )
 async def topic_write_guard(message: Message):
+    # Topic bo‘lmasa — aralashmaymiz
     if message.message_thread_id is None:
         return
 
+    # Muhokama topic — ruxsat
     if message.message_thread_id == DISCUSSION_TOPIC_ID:
         return
 
+    # Buyruqlarni tegma
     if message.text and message.text.startswith("/"):
         return
 
+    # Admin bo‘lsa — ruxsat
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
+    # Oddiy user yozdi — o‘chiramiz
     try:
         await message.delete()
     except:
         pass
 
+    # Qisqa ogohlantirish
     try:
         warn = await message.answer(
             "❌ Bu bo‘limda faqat buyurtma berish mumkin.\n"
@@ -288,6 +294,7 @@ async def topic_write_guard(message: Message):
         await warn.delete()
     except:
         pass
+
 # ================= RUN =================
 async def main():
     await dp.start_polling(bot)
