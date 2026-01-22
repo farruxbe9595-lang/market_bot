@@ -27,6 +27,20 @@ ADMIN_CHANNEL_ID = -1003631320685
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
+# ================= TOPIC RULES =================
+DISCUSSION_TOPIC_ID = 1  # Muhokama chat
+
+ADMIN_ONLY_TOPICS = {
+    2,    # Ayollar kiyimlari
+    5,    # Erkaklar kiyimlari
+    6,    # Bolalar kiyimlari
+    7,    # Idish buyumlar
+    9,    # Xo‘jalik buyumlari
+    11,   # Yangiliklar
+    21,   # Oyoq kiyimlar
+    241,  # oziq ovqat
+    342   # Boshqa tavarlar
+}
 
 # ================= STATES =================
 class AddProductState(StatesGroup):
@@ -90,6 +104,38 @@ async def cleanup_messages(chat_id: int, msg_ids: list[int]):
             await bot.delete_message(chat_id, mid)
         except:
             pass
+# ================= TOPIC WRITE CONTROL =================
+@dp.message(F.chat.id == MARKET_GROUP_ID)
+async def topic_write_guard(message: Message):
+    # Agar topic bo‘lmasa (oddiy chat) — tegmaymiz
+    if message.message_thread_id is None:
+        return
+
+    topic_id = message.message_thread_id
+
+    # Muhokama topic — hammaga ruxsat
+    if topic_id == DISCUSSION_TOPIC_ID:
+        return
+
+    # Admin bo‘lsa — ruxsat
+    if await is_admin(message.chat.id, message.from_user.id):
+        return
+
+    # ❌ Oddiy user admin-only topicda yozdi
+    try:
+        await message.delete()
+    except:
+        pass
+
+    # (ixtiyoriy) ogohlantirish
+    try:
+        await message.answer(
+            "❌ Bu bo‘limda faqat adminlar yozishi mumkin.\n"
+            "💬 Muhokama uchun *Muhokama chat*dan foydalaning.",
+            parse_mode="Markdown"
+        )
+    except:
+        pass
 
 # ================= /add_product =================
 @dp.message(Command("add_product"))
