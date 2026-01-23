@@ -16,10 +16,6 @@ from aiogram.types import (
     CallbackQuery
 )
 from aiogram.filters import Command, CommandStart
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext
-from aiogram.filters import StateFilter
-
 
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -35,17 +31,6 @@ dp = Dispatcher()
 
 # ================= TOPIC RULES =================
 DISCUSSION_TOPIC_ID = 1  # Muhokama chat
-
-# ================= STATES =================
-class AddProductState(StatesGroup):
-    photo = State()
-    text = State()
-    product_id = State()
-
-class OrderState(StatesGroup):
-    size = State()
-    quantity = State()
-    phone = State()
 
 # ================= ADMIN CHECK =================
 async def is_admin(chat_id: int, user_id: int) -> bool:
@@ -189,69 +174,128 @@ async def cancel_admin(call: CallbackQuery, state: FSMContext):
     await call.answer("Bekor qilindi")
 
 # ================= ORDER FLOW (FINAL FIX) =================
+ORDERS: dict[int, dict] = {}
 
 @dp.message(CommandStart())
-async def start_order(message: Message, state: FSMContext):
-    await state.clear()
-
+async def start_order(message: Message):
     if " " not in message.text:
         await message.answer("🛒 Buyurtma berish uchun mahsulotdagi tugmani bosing.")
         return
 
     product_id = message.text.split(" ", 1)[1]
 
-    await state.update_data(
-        product_id=product_id,
-        user_id=message.from_user.id,
-        username=message.from_user.username
+    ORDERS[message.from_user.id] = {
+        "product_id": product_id
+    }
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        # 👕 Kiyim
+        [
+            InlineKeyboardButton(text="👕 M", callback_data="size:M"),
+            InlineKeyboardButton(text="👕 L", callback_data="size:L"),
+            InlineKeyboardButton(text="👕 XL", callback_data="size:XL"),
+        ],
+        # 🧒 Bolalar yoshi
+        [
+            InlineKeyboardButton(text="🧒 3–4 yosh", callback_data="size:3-4"),
+            InlineKeyboardButton(text="🧒 5–6 yosh", callback_data="size:5-6"),
+            InlineKeyboardButton(text="🧒 7–8 yosh", callback_data="size:7-8"),
+        ],
+        [
+            InlineKeyboardButton(text="🧒 9–10 yosh", callback_data="size:9-10"),
+            InlineKeyboardButton(text="🧒 11–12 yosh", callback_data="size:11-12"),
+        ],
+        # 👟 Oyoq kiyim
+        [
+            InlineKeyboardButton(text="👟 36", callback_data="size:36"),
+            InlineKeyboardButton(text="👟 37", callback_data="size:37"),
+            InlineKeyboardButton(text="👟 38", callback_data="size:38"),
+        ],
+        [
+            InlineKeyboardButton(text="👟 39", callback_data="size:39"),
+            InlineKeyboardButton(text="👟 40", callback_data="size:40"),
+            InlineKeyboardButton(text="👟 41", callback_data="size:41"),
+        ],
+        [
+            InlineKeyboardButton(text="👟 42", callback_data="size:42"),
+            InlineKeyboardButton(text="👟 43", callback_data="size:43"),
+            InlineKeyboardButton(text="👟 44", callback_data="size:44"),
+        ],
+        # 📦 O‘lcham yo‘q
+        [
+            InlineKeyboardButton(
+                text="📦 O‘lcham kerak emas",
+                callback_data="size:none"
+            )
+        ]
+    ])
+
+    await message.answer("👕 O‘lchamni tanlang:", reply_markup=kb)
+
+@dp.callback_query(F.data.startswith("size:"))
+async def choose_size(call: CallbackQuery):
+    user_id = call.from_user.id
+    if user_id not in ORDERS:
+        await call.answer("Buyurtma topilmadi", show_alert=True)
+        return
+
+    size = call.data.split(":", 1)[1]
+    ORDERS[user_id]["size"] = "Kerak emas" if size == "none" else size
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="1", callback_data="qty:1"),
+            InlineKeyboardButton(text="2", callback_data="qty:2"),
+            InlineKeyboardButton(text="3", callback_data="qty:3"),
+        ],
+        [
+            InlineKeyboardButton(text="4", callback_data="qty:4"),
+            InlineKeyboardButton(text="5", callback_data="qty:5"),
+            InlineKeyboardButton(text="6", callback_data="qty:6"),
+        ],
+        [
+            InlineKeyboardButton(text="7", callback_data="qty:7"),
+            InlineKeyboardButton(text="8", callback_data="qty:8"),
+            InlineKeyboardButton(text="9", callback_data="qty:9"),
+            InlineKeyboardButton(text="10", callback_data="qty:10"),
+        ]
+    ])
+
+    await call.message.edit_text("📦 Nechta dona?", reply_markup=kb)
+@dp.callback_query(F.data.startswith("qty:"))
+async def choose_quantity(call: CallbackQuery):
+    user_id = call.from_user.id
+    if user_id not in ORDERS:
+        await call.answer("Buyurtma topilmadi", show_alert=True)
+        return
+
+    qty = call.data.split(":", 1)[1]
+    ORDERS[user_id]["quantity"] = qty
+
+    await call.message.answer(
+        "📞 Telefon raqamingizni yuboring:",
+        reply_markup=ReplyKeyboardMarkup(
+            [[KeyboardButton("📞 Telefon yuborish", request_contact=True)]],
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
     )
-    await message.answer("🛒 Buyurtma boshlanmoqda", reply_markup=ReplyKeyboardRemove())
+@dp.message(F.contact)
+async def finish_order(message: Message):
+    user_id = message.from_user.id
+    data = ORDERS.pop(user_id, None)
 
-    await message.answer(
-        "👕 O‘lchamni tanlang:",
-        reply_markup=size_kb()
-    )
-    await state.set_state(OrderState.size)
-
-@dp.message(StateFilter(OrderState.size), F.text)
-async def order_size(message: Message, state: FSMContext):
-    data = await state.get_data()
-    if data.get("size"):
-        return  # 🔒 qayta bosishni bloklaydi
-
-    await state.update_data(size=message.text)
-
-    await message.answer(
-        "📦 Nechta dona?",
-        reply_markup=quantity_kb()
-    )
-    await state.set_state(OrderState.quantity)
-
-@dp.message(
-    StateFilter(OrderState.quantity),
-    F.text.in_([str(i) for i in range(1, 11)])
-)
-async def order_quantity(message: Message, state: FSMContext):
-    await state.update_data(quantity=message.text)
-
-    await message.answer(
-        "📱 Telefon raqamingizni yuboring:",
-        reply_markup=phone_kb()
-    )
-    await state.set_state(OrderState.phone)
-
-@dp.message(StateFilter(OrderState.phone), F.contact)
-async def order_finish(message: Message, state: FSMContext):
-    data = await state.get_data()
+    if not data:
+        return
 
     phone = message.contact.phone_number
     if not phone.startswith("+"):
         phone = f"+{phone}"
 
     profile_url = (
-        f"https://t.me/{data['username']}"
-        if data.get("username")
-        else f"tg://user?id={data['user_id']}"
+        f"https://t.me/{message.from_user.username}"
+        if message.from_user.username
+        else f"tg://user?id={user_id}"
     )
 
     text = (
@@ -268,7 +312,8 @@ async def order_finish(message: Message, state: FSMContext):
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)]
+                [InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)],
+                [InlineKeyboardButton(text="📞 Qo‘ng‘iroq qilish", url=f"tel:{phone}")]
             ]
         )
     )
@@ -277,9 +322,6 @@ async def order_finish(message: Message, state: FSMContext):
         "✅ Buyurtma qabul qilindi!",
         reply_markup=ReplyKeyboardRemove()
     )
-
-    await state.clear()
-
 
 # ================= TOPIC WRITE GUARD =================
 @dp.message(
@@ -298,9 +340,7 @@ async def topic_write_guard(message: Message):
 
     if await is_admin(message.chat.id, message.from_user.id):
         return
-    # FSM ishlayapti — tegma
-    if await dp.fsm.get_context(bot, message.chat.id, message.from_user.id).get_state():
-        return
+ 
 
 
     # User xabarini o‘chiramiz
