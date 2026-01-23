@@ -205,19 +205,24 @@ ORDERS: dict[int, dict] = {}
 @dp.message(CommandStart())
 async def start_order(message: Message):
     user_id = message.from_user.id
-    ORDERS.pop(user_id, None)  # 🔥 eski buyurtmani tozalash
+    ORDERS.pop(user_id, None)  # eski buyurtmani tozalash
 
-    if " " not in message.text:
-        await message.answer("🛒 Buyurtma berish uchun mahsulotdagi tugmani bosing.")
+    parts = message.text.split(maxsplit=1)
+    if len(parts) == 1:
+        await message.answer(
+            "🛒 Buyurtma berish uchun mahsulotdagi «Buyurtma berish» tugmasini bosing."
+        )
         return
 
-    product_id = message.text.split(" ", 1)[1]
-    user_id = message.from_user.id
+    product_id = parts[1].strip()
 
     ORDERS[user_id] = {
         "product_id": product_id,
         "step": "size"
     }
+
+    await message.answer("👕 O‘lchamni tanlang:", reply_markup=SIZE_KB)
+
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton("👕 M", callback_data="size:M"),
