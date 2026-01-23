@@ -78,10 +78,10 @@ def quantity_kb():
         keyboard=[
             [KeyboardButton(text=str(i)) for i in range(1, 6)],
             [KeyboardButton(text=str(i)) for i in range(6, 11)],
-            [KeyboardButton(text="➕ Boshqa son kiritish")],
             [KeyboardButton(text="❌ Buyurtmani bekor qilish")]
         ],
-        resize_keyboard=True
+        resize_keyboard=True,
+        one_time_keyboard=True
     )
 
 def phone_kb():
@@ -189,7 +189,7 @@ async def cancel_admin(call: CallbackQuery, state: FSMContext):
     await call.answer("Bekor qilindi")
 
 # ================= ORDER FLOW (FINAL FIX) =================
-# ===== START =====
+
 @dp.message(CommandStart())
 async def start_order(message: Message, state: FSMContext):
     await state.clear()
@@ -205,52 +205,43 @@ async def start_order(message: Message, state: FSMContext):
         user_id=message.from_user.id,
         username=message.from_user.username
     )
+    await message.answer("🛒 Buyurtma boshlanmoqda", reply_markup=ReplyKeyboardRemove())
 
-    await message.answer("👕 O‘lchamni tanlang:", reply_markup=size_kb())
+    await message.answer(
+        "👕 O‘lchamni tanlang:",
+        reply_markup=size_kb()
+    )
     await state.set_state(OrderState.size)
 
+@dp.message(StateFilter(OrderState.size), F.text)
+async def order_size(message: Message, state: FSMContext):
+    data = await state.get_data()
+    if data.get("size"):
+        return  # 🔒 qayta bosishni bloklaydi
 
-# ===== SIZE =====
-@dp.message(StateFilter(OrderState.size))
-async def step_size(message: Message, state: FSMContext):
     await state.update_data(size=message.text)
 
     await message.answer(
         "📦 Nechta dona?",
         reply_markup=quantity_kb()
     )
-
     await state.set_state(OrderState.quantity)
 
-
-# ===== QUANTITY =====
-@dp.message(StateFilter(OrderState.quantity))
-async def step_quantity(message: Message, state: FSMContext):
-    if message.text == "❌ Buyurtmani bekor qilish":
-        await state.clear()
-        await message.answer("❌ Buyurtma bekor qilindi.", reply_markup=ReplyKeyboardRemove())
-        return
-
-    if message.text == "➕ Boshqa son kiritish":
-        await message.answer("✍️ Sonni yozing:", reply_markup=ReplyKeyboardRemove())
-        return
-
-    if not message.text.isdigit():
-        return
-
+@dp.message(
+    StateFilter(OrderState.quantity),
+    F.text.in_([str(i) for i in range(1, 11)])
+)
+async def order_quantity(message: Message, state: FSMContext):
     await state.update_data(quantity=message.text)
 
     await message.answer(
         "📱 Telefon raqamingizni yuboring:",
         reply_markup=phone_kb()
     )
-
     await state.set_state(OrderState.phone)
 
-
-# ===== PHONE =====
 @dp.message(StateFilter(OrderState.phone), F.contact)
-async def step_phone(message: Message, state: FSMContext):
+async def order_finish(message: Message, state: FSMContext):
     data = await state.get_data()
 
     phone = message.contact.phone_number
@@ -276,11 +267,17 @@ async def step_phone(message: Message, state: FSMContext):
         text,
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton("✉️ Buyurtmachiga yozish", url=profile_url)]]
+            inline_keyboard=[
+                [InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)]
+            ]
         )
     )
 
-    await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
+    await message.answer(
+        "✅ Buyurtma qabul qilindi!",
+        reply_markup=ReplyKeyboardRemove()
+    )
+
     await state.clear()
 
 
@@ -301,6 +298,10 @@ async def topic_write_guard(message: Message):
 
     if await is_admin(message.chat.id, message.from_user.id):
         return
+    # FSM ishlayapti — tegma
+    if await dp.fsm.get_context(bot, message.chat.id, message.from_user.id).get_state():
+        return
+
 
     # User xabarini o‘chiramiz
     try:
