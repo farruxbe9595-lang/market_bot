@@ -243,7 +243,8 @@ async def order_finish(message: Message, state: FSMContext):
         else f"tg://user?id={data['user_id']}"
     )
 
-    phone = message.contact.phone_number
+    raw_phone = message.contact.phone_number.strip()
+    phone = raw_phone if raw_phone.startswith("+") else f"+{raw_phone}"
 
     text = (
         "🛒 <b>YANGI BUYURTMA</b>\n\n"
@@ -257,7 +258,7 @@ async def order_finish(message: Message, state: FSMContext):
         ADMIN_CHANNEL_ID,
         text,
         parse_mode="HTML",
-        disable_web_page_preview=True,  # 🔥 MUHIM
+        disable_web_page_preview=True,
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)],
@@ -268,7 +269,6 @@ async def order_finish(message: Message, state: FSMContext):
 
     await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
     await state.clear()
-
 
 
 # ================= TOPIC WRITE GUARD =================
