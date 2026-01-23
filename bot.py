@@ -221,9 +221,6 @@ async def start_order(message: Message):
         "step": "size"
     }
 
-    await message.answer("👕 O‘lchamni tanlang:", reply_markup=SIZE_KB)
-
-
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton("👕 M", callback_data="size:M"),
          InlineKeyboardButton("👕 L", callback_data="size:L"),
