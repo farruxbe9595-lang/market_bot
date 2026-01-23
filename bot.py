@@ -188,7 +188,8 @@ async def cancel_admin(call: CallbackQuery, state: FSMContext):
     await state.clear()
     await call.answer("Bekor qilindi")
 
-# ================= ORDER FLOW (O‘ZGARMAGAN) =================
+# ================= ORDER FLOW (TO‘G‘RILANGAN) =================
+
 @dp.message(CommandStart())
 async def start_order(message: Message, state: FSMContext):
     await state.clear()
@@ -198,10 +199,15 @@ async def start_order(message: Message, state: FSMContext):
         return
 
     product_id = message.text.split(" ", 1)[1]
-    await state.update_data(product_id=product_id, user_id=message.from_user.id, username=message.from_user.username)
+    await state.update_data(
+        product_id=product_id,
+        user_id=message.from_user.id,
+        username=message.from_user.username
+    )
 
     await message.answer("👕 O‘lchamni tanlang:", reply_markup=size_kb())
     await state.set_state(OrderState.size)
+
 
 @dp.message(F.text == "❌ Buyurtmani bekor qilish")
 @dp.message(Command("cancel"))
@@ -209,30 +215,38 @@ async def cancel_order(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("❌ Buyurtma bekor qilindi.", reply_markup=ReplyKeyboardRemove())
 
+
+# ---------- SIZE ----------
 @dp.message(StateFilter(OrderState.size), F.text)
 async def order_size(message: Message, state: FSMContext):
     await state.update_data(size=message.text)
     await message.answer("📦 Nechta dona?", reply_markup=quantity_kb())
     await state.set_state(OrderState.quantity)
 
-@dp.message(OrderState.quantity, F.text.in_([str(i) for i in range(1, 11)]))
-async def quantity_btn(message: Message, state: FSMContext):
-    await state.update_data(quantity=message.text)
-    await message.answer("📱 Telefon raqamingizni yuboring:", reply_markup=phone_kb())
-    await state.set_state(OrderState.phone)
 
-@dp.message(OrderState.quantity, F.text == "➕ Boshqa son kiritish")
-async def quantity_custom(message: Message):
-    await message.answer("✍️ Sonni yozing:", reply_markup=ReplyKeyboardRemove())
+# ---------- QUANTITY (BITTA HANDLER!) ----------
+@dp.message(StateFilter(OrderState.quantity))
+async def order_quantity(message: Message, state: FSMContext):
+    text = message.text
 
-@dp.message(StateFilter(OrderState.quantity), F.text)
-async def quantity_text(message: Message, state: FSMContext):
-    if not message.text.isdigit():
+    if text == "❌ Buyurtmani bekor qilish":
+        await state.clear()
+        await message.answer("❌ Buyurtma bekor qilindi.", reply_markup=ReplyKeyboardRemove())
         return
-    await state.update_data(quantity=message.text)
+
+    if text == "➕ Boshqa son kiritish":
+        await message.answer("✍️ Sonni yozing:", reply_markup=ReplyKeyboardRemove())
+        return
+
+    if not text.isdigit():
+        return
+
+    await state.update_data(quantity=text)
     await message.answer("📱 Telefon raqamingizni yuboring:", reply_markup=phone_kb())
     await state.set_state(OrderState.phone)
 
+
+# ---------- PHONE (FAQAT CONTACT) ----------
 @dp.message(StateFilter(OrderState.phone), F.contact)
 async def order_finish(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -244,21 +258,25 @@ async def order_finish(message: Message, state: FSMContext):
     )
 
     phone = message.contact.phone_number
+    if not phone.startswith("+"):
+        phone = f"+{phone}"
 
     text = (
-        "🛒 YANGI BUYURTMA\n\n"
-        f"🆔 Mahsulot: {data['product_id']}\n"
-        f"👕 O‘lcham: {data['size']}\n"
-        f"📦 Soni: {data['quantity']}\n\n"
-        f"📞 Tel: <a href='tel:{phone}'>{phone}</a>"
+        "🛒 <b>YANGI BUYURTMA</b>\n\n"
+        f"🆔 <b>Mahsulot:</b> {data['product_id']}\n"
+        f"👕 <b>O‘lcham:</b> {data['size']}\n"
+        f"📦 <b>Soni:</b> {data['quantity']}\n\n"
+        f"📞 <b>Tel:</b> <a href='tel:{phone}'>{phone}</a>"
     )
 
     await bot.send_message(
         ADMIN_CHANNEL_ID,
         text,
-        parse_mode="HTML",   # 🔥 MUHIM
+        parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)]]
+            inline_keyboard=[
+                [InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)]
+            ]
         )
     )
 
