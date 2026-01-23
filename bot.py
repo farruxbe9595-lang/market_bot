@@ -265,7 +265,7 @@ async def order_finish(message: Message, state: FSMContext):
 # ================= TOPIC WRITE GUARD =================
 @dp.message(
     F.chat.id == MARKET_GROUP_ID,
-    StateFilter(None)   # 🔥 FSM YO‘Q PAYTDA GINA
+    StateFilter(None)   # FSM YO‘Q PAYTDA GINA
 )
 async def topic_write_guard(message: Message):
     if message.message_thread_id is None:
@@ -280,8 +280,21 @@ async def topic_write_guard(message: Message):
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
+    # User xabarini o‘chiramiz
     try:
         await message.delete()
+    except:
+        pass
+
+    # Ogohlantirish yuboramiz
+    try:
+        warn = await message.answer(
+            "❌ Bu bo‘limda faqat buyurtma berishingiz mumkin.\n"
+            "💬 Muhokama uchun *Muhokama chat*dan foydalaning.",
+            parse_mode="Markdown"
+        )
+        await asyncio.sleep(3)
+        await warn.delete()
     except:
         pass
 
