@@ -274,7 +274,7 @@ async def order_finish(message: Message, state: FSMContext):
 # ================= TOPIC WRITE GUARD =================
 @dp.message(F.chat.id == MARKET_GROUP_ID)
 async def topic_write_guard(message: Message, state: FSMContext):
-    # 🔥 FSM ishlayapti — UMUMAN TEGMA
+    # 🔒 FSM ishlayapti — umuman aralashma
     if await state.get_state() is not None:
         return
 
@@ -290,15 +290,21 @@ async def topic_write_guard(message: Message, state: FSMContext):
     if message.text and message.text.startswith("/"):
         return
 
-    # CONTACT / PHOTO / CALLBACK — TEGMA
-    if message.contact or message.photo or message.document:
+    # 🔥 CONTACT / PHOTO / DOCUMENT / LOCATION — TEGMA
+    if (
+        message.contact
+        or message.photo
+        or message.document
+        or message.location
+        or message.video
+    ):
         return
 
-    # Admin bo‘lsa — ruxsat
+    # Admin — ruxsat
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
-    # ❌ Oddiy user noto‘g‘ri joyga yozdi
+    # ❌ Noto‘g‘ri joyga yozildi
     try:
         await message.delete()
     except:
