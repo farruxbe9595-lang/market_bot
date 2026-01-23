@@ -230,21 +230,34 @@ async def order_size(message: Message, state: FSMContext):
 # ---------- QUANTITY ----------
 @dp.message(StateFilter(OrderState.quantity), F.text)
 async def order_quantity(message: Message, state: FSMContext):
+    data = await state.get_data()
+
+    # 🔒 AGAR ALLAQACHON TANLANGAN BO‘LSA — BLOK
+    if data.get("quantity"):
+        return
+
     if message.text == "❌ Buyurtmani bekor qilish":
         await state.clear()
-        await message.answer("❌ Buyurtma bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+        await message.answer(
+            "❌ Buyurtma bekor qilindi.",
+            reply_markup=ReplyKeyboardRemove()
+        )
         return
 
     if message.text == "➕ Boshqa son kiritish":
-        await message.answer("✍️ Sonni yozing:", reply_markup=ReplyKeyboardRemove())
+        await message.answer(
+            "✍️ Sonni yozing:",
+            reply_markup=ReplyKeyboardRemove()
+        )
         return
 
     if not message.text.isdigit():
         return
 
+    # 🔥 BIR MARTA SAQLAYMIZ
     await state.update_data(quantity=message.text)
 
-    # 🔥 QUANTITY klaviaturasini O‘CHIRAMIZ
+    # 🔥 KLAVIATURANI DARHOL O‘CHIRAMIZ
     await message.answer(
         "📱 Telefon raqamingizni yuboring:",
         reply_markup=phone_kb()
