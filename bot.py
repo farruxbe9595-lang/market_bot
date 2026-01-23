@@ -222,8 +222,9 @@ async def quantity_btn(message: Message, state: FSMContext):
     await state.set_state(OrderState.phone)
 
 @dp.message(OrderState.quantity, F.text == "➕ Boshqa son kiritish")
-async def quantity_custom(message: Message):
+async def quantity_custom(message: Message, state: FSMContext):
     await message.answer("✍️ Sonni yozing:", reply_markup=ReplyKeyboardRemove())
+    await state.set_state(OrderState.quantity)  # 🔒 MUHIM
 
 @dp.message(StateFilter(OrderState.quantity), F.text)
 async def quantity_text(message: Message, state: FSMContext):
@@ -295,6 +296,10 @@ async def order_phone_invalid(message: Message):
     StateFilter(None)
 )
 async def topic_write_guard(message: Message):
+    # ❌ CONTACT SERVICE UPDATE HAM TEGMASIN
+    if message.contact is not None:
+        return
+
     if message.message_thread_id is None:
         return
 
@@ -305,8 +310,7 @@ async def topic_write_guard(message: Message):
         return
 
     if (
-        message.contact
-        or message.photo
+        message.photo
         or message.document
         or message.video
         or message.location
