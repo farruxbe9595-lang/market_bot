@@ -232,9 +232,16 @@ async def quantity_text(message: Message, state: FSMContext):
     await state.update_data(quantity=message.text)
     await message.answer("📱 Telefon raqamingizni yuboring:", reply_markup=phone_kb())
     await state.set_state(OrderState.phone)
+    
 @dp.message(StateFilter(OrderState.phone), F.contact)
 async def order_finish(message: Message, state: FSMContext):
     data = await state.get_data()
+
+    # 🔒 DOUBLE TRIGGER BLOKI
+    if data.get("_finished"):
+        return
+
+    await state.update_data(_finished=True)
 
     profile_url = (
         f"https://t.me/{data['username']}"
@@ -267,8 +274,11 @@ async def order_finish(message: Message, state: FSMContext):
     )
 
     await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
-    await state.clear()   # 🔥 FAQAT SHU YERDA
-    
+
+    # 🔥 FSMNI KECHIKTIRIB YOPAMIZ
+    await asyncio.sleep(0.3)
+    await state.clear()
+
 @dp.message(StateFilter(OrderState.phone), F.text)
 async def order_phone_invalid(message: Message):
     await message.answer(
@@ -278,10 +288,11 @@ async def order_phone_invalid(message: Message):
 
 
 
+
 # ================= TOPIC WRITE GUARD =================
 @dp.message(
     F.chat.id == MARKET_GROUP_ID,
-    StateFilter(None)   # 🔥 FAQAT FSM YO‘Q PAYTDA
+    StateFilter(None)
 )
 async def topic_write_guard(message: Message):
     if message.message_thread_id is None:
@@ -293,7 +304,6 @@ async def topic_write_guard(message: Message):
     if message.text and message.text.startswith("/"):
         return
 
-    # MEDIA / CONTACT — TEGMA
     if (
         message.contact
         or message.photo
@@ -301,9 +311,6 @@ async def topic_write_guard(message: Message):
         or message.video
         or message.location
     ):
-        return
-
-    if await is_admin(message.chat.id, message.from_user.id):
         return
 
     try:
