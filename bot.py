@@ -136,6 +136,9 @@ async def add_product_photo(message: Message, state: FSMContext):
     await state.update_data(msgs=data["msgs"])
     await state.set_state(AddProductState.text)
 
+@dp.message(StateFilter(AddProductState.photo))
+async def add_product_photo_invalid(message: Message):
+    await message.answer("❗ Iltimos, mahsulot rasmini yuboring.")
 
 @dp.message(StateFilter(AddProductState.text), F.text)
 async def add_product_text(message: Message, state: FSMContext):
