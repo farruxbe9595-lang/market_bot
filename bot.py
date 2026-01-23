@@ -272,30 +272,38 @@ async def order_finish(message: Message, state: FSMContext):
 
 
 # ================= TOPIC WRITE GUARD =================
-@dp.message(
-    F.chat.id == MARKET_GROUP_ID,
-    StateFilter(None)   # FSM YO‘Q PAYTDA GINA
-)
-async def topic_write_guard(message: Message):
+@dp.message(F.chat.id == MARKET_GROUP_ID)
+async def topic_write_guard(message: Message, state: FSMContext):
+    # 🔥 FSM ishlayapti — UMUMAN TEGMA
+    if await state.get_state() is not None:
+        return
+
+    # Topic yo‘q — tegma
     if message.message_thread_id is None:
         return
 
+    # Muhokama topic — ruxsat
     if message.message_thread_id == DISCUSSION_TOPIC_ID:
         return
 
+    # Buyruqlar — ruxsat
     if message.text and message.text.startswith("/"):
         return
 
+    # CONTACT / PHOTO / CALLBACK — TEGMA
+    if message.contact or message.photo or message.document:
+        return
+
+    # Admin bo‘lsa — ruxsat
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
-    # User xabarini o‘chiramiz
+    # ❌ Oddiy user noto‘g‘ri joyga yozdi
     try:
         await message.delete()
     except:
         pass
 
-    # Ogohlantirish yuboramiz
     try:
         warn = await message.answer(
             "❌ Bu bo‘limda faqat buyurtma berishingiz mumkin.\n"
