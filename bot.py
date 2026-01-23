@@ -121,7 +121,7 @@ async def add_product(message: Message, state: FSMContext):
     await state.update_data(msgs=[message.message_id, msg.message_id])
     await state.set_state(AddProductState.photo)
 
-@dp.message(StateFilter(AddProductState.photo))
+@dp.message(StateFilter(AddProductState.photo), F.photo)
 async def add_product_photo(message: Message, state: FSMContext):
     data = await state.get_data()
     data["msgs"].append(message.message_id)
@@ -135,6 +135,7 @@ async def add_product_photo(message: Message, state: FSMContext):
     data["msgs"].append(msg.message_id)
     await state.update_data(msgs=data["msgs"])
     await state.set_state(AddProductState.text)
+
 
 @dp.message(StateFilter(AddProductState.text), F.text)
 async def add_product_text(message: Message, state: FSMContext):
