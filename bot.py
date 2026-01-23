@@ -17,8 +17,10 @@ from aiogram.types import (
 )
 from aiogram.filters import Command, CommandStart
 
+
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN topilmadi!")
 
@@ -28,6 +30,7 @@ ADMIN_CHANNEL_ID = -1003631320685
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
+# ================= TOPIC RULES =================
 DISCUSSION_TOPIC_ID = 1  # Muhokama chat
 
 # ================= ADMIN CHECK =================
@@ -35,12 +38,175 @@ async def is_admin(chat_id: int, user_id: int) -> bool:
     admins = await bot.get_chat_administrators(chat_id)
     return any(a.user.id == user_id for a in admins)
 
+
+
+# ================= ADMIN CLEANUP =================
+async def cleanup_messages(chat_id: int, msg_ids: list[int]):
+    for mid in msg_ids:
+        try:
+            await bot.delete_message(chat_id, mid)
+        except:
+            pass
+
+
+# ================= /add_product =================
+# ================= ADD PRODUCT FSM =================
+
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
+
+
+class AddProductState(StatesGroup):
+    photo = State()
+    text = State()
+    product_id = State()
+
+
+def admin_cancel_kb():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_admin")]
+        ]
+    )
+
+
+@dp.message(Command("add_product"))
+async def add_product_start(message: Message, state: FSMContext):
+    if message.chat.id != MARKET_GROUP_ID:
+        return
+    if not await is_admin(message.chat.id, message.from_user.id):
+        return
+    if message.message_thread_id is None:
+        await message.answer("❗ Mahsulotni faqat topic ichida qo‘shing.")
+        return
+
+    await state.clear()
+
+    # 🔥 msgs ni darrov to‘ldiramiz
+    msg = await message.answer(
+        "🖼 Mahsulot rasmini yuboring:",
+        reply_markup=admin_cancel_kb()
+    )
+
+    await state.update_data(
+        topic_id=message.message_thread_id,
+        msgs=[msg.message_id]
+    )
+
+    await state.set_state(AddProductState.photo)
+
+
+
+# ---------- PHOTO ----------
+@dp.message(StateFilter(AddProductState.photo), F.photo)
+async def add_product_photo(message: Message, state: FSMContext):
+    data = await state.get_data()
+    data["msgs"].append(message.message_id)
+
+    await state.update_data(
+        product_photo=message.photo[-1].file_id,
+        msgs=data["msgs"]
+    )
+
+    msg = await message.answer(
+        "📝 Tavsifni yuboring:",
+        reply_markup=admin_cancel_kb()
+    )
+
+    data["msgs"].append(msg.message_id)
+    await state.update_data(msgs=data["msgs"])
+
+    await state.set_state(AddProductState.text)
+
+
+@dp.message(StateFilter(AddProductState.photo))
+async def add_product_photo_invalid(message: Message):
+    await message.answer("❗ Iltimos, rasm yuboring.")
+
+
+# ---------- TEXT ----------
+@dp.message(StateFilter(AddProductState.text), F.text)
+async def add_product_text(message: Message, state: FSMContext):
+    data = await state.get_data()
+    data["msgs"].append(message.message_id)
+
+    await state.update_data(
+        product_text=message.text,
+        msgs=data["msgs"]
+    )
+
+    msg = await message.answer(
+        "🆔 Mahsulot ID ni yuboring:",
+        reply_markup=admin_cancel_kb()
+    )
+
+    data["msgs"].append(msg.message_id)
+    await state.update_data(msgs=data["msgs"])
+
+    await state.set_state(AddProductState.product_id)
+
+
+# ---------- PRODUCT ID ----------
+@dp.message(StateFilter(AddProductState.product_id), F.text)
+async def add_product_publish(message: Message, state: FSMContext):
+    data = await state.get_data()
+    data["msgs"].append(message.message_id)
+
+    product_id = message.text.strip()
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🛒 Buyurtma berish",
+                    url=f"https://t.me/{(await bot.me()).username}?start={product_id}"
+                )
+            ]
+        ]
+    )
+
+    await bot.send_photo(
+        chat_id=MARKET_GROUP_ID,
+        message_thread_id=data["topic_id"],
+        photo=data["product_photo"],
+        caption=f"🆔 ID: {product_id}\n\n{data['product_text']}",
+        reply_markup=kb
+    )
+
+    # 🔥 Tozalash
+    for mid in data["msgs"]:
+        try:
+            await bot.delete_message(message.chat.id, mid)
+        except:
+            pass
+
+    await state.clear()
+
+
+# ---------- CANCEL ----------
+@dp.callback_query(F.data == "cancel_admin")
+async def cancel_add_product(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+
+    for mid in data.get("msgs", []):
+        try:
+            await bot.delete_message(call.message.chat.id, mid)
+        except:
+            pass
+
+    await state.clear()
+    await call.answer("Bekor qilindi")
+
 # ================= ORDER STORAGE =================
 ORDERS: dict[int, dict] = {}
-
+# ================= ORDER FLOW (FINAL FIX) =================
 # ================= ORDER START =================
 @dp.message(CommandStart())
 async def start_order(message: Message):
+    user_id = message.from_user.id
+    ORDERS.pop(user_id, None)  # 🔥 eski buyurtmani tozalash
+
     if " " not in message.text:
         await message.answer("🛒 Buyurtma berish uchun mahsulotdagi tugmani bosing.")
         return
@@ -181,6 +347,29 @@ async def finish_order(message: Message):
     )
 
     await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
+
+
+# ================= TOPIC WRITE GUARD =================
+@dp.message(F.chat.id == MARKET_GROUP_ID, F.text)
+async def topic_guard(message: Message, state: FSMContext):
+    if await state.get_state():
+        return
+
+    if message.message_thread_id == DISCUSSION_TOPIC_ID:
+        return
+
+    if message.text.startswith("/"):
+        return
+
+    if await is_admin(message.chat.id, message.from_user.id):
+        return
+
+    try:
+        await message.delete()
+    except:
+        pass
+
+
 
 # ================= RUN =================
 async def main():
