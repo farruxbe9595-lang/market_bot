@@ -246,19 +246,23 @@ async def order_finish(message: Message, state: FSMContext):
     phone = message.contact.phone_number
 
     text = (
-        "🛒 YANGI BUYURTMA\n\n"
-        f"🆔 Mahsulot: {data['product_id']}\n"
-        f"👕 O‘lcham: {data['size']}\n"
-        f"📦 Soni: {data['quantity']}\n\n"
-        f"📞 Tel: <a href='tel:{phone}'>{phone}</a>"
+        "🛒 <b>YANGI BUYURTMA</b>\n\n"
+        f"🆔 <b>Mahsulot:</b> {data['product_id']}\n"
+        f"👕 <b>O‘lcham:</b> {data['size']}\n"
+        f"📦 <b>Soni:</b> {data['quantity']}\n\n"
+        f"📞 <b>Tel:</b> <a href='tel:{phone}'>{phone}</a>"
     )
 
     await bot.send_message(
         ADMIN_CHANNEL_ID,
         text,
-        parse_mode="HTML",   # 🔥 MUHIM
+        parse_mode="HTML",
+        disable_web_page_preview=True,  # 🔥 MUHIM
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)]]
+            inline_keyboard=[
+                [InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)],
+                [InlineKeyboardButton(text="📞 Qo‘ng‘iroq qilish", url=f"tel:{phone}")]
+            ]
         )
     )
 
