@@ -222,9 +222,8 @@ async def quantity_btn(message: Message, state: FSMContext):
     await state.set_state(OrderState.phone)
 
 @dp.message(OrderState.quantity, F.text == "➕ Boshqa son kiritish")
-async def quantity_custom(message: Message, state: FSMContext):
+async def quantity_custom(message: Message):
     await message.answer("✍️ Sonni yozing:", reply_markup=ReplyKeyboardRemove())
-    await state.set_state(OrderState.quantity)  # 🔒 MUHIM
 
 @dp.message(StateFilter(OrderState.quantity), F.text)
 async def quantity_text(message: Message, state: FSMContext):
@@ -233,16 +232,10 @@ async def quantity_text(message: Message, state: FSMContext):
     await state.update_data(quantity=message.text)
     await message.answer("📱 Telefon raqamingizni yuboring:", reply_markup=phone_kb())
     await state.set_state(OrderState.phone)
-    
+
 @dp.message(StateFilter(OrderState.phone), F.contact)
 async def order_finish(message: Message, state: FSMContext):
     data = await state.get_data()
-
-    # 🔒 DOUBLE TRIGGER BLOKI
-    if data.get("_finished"):
-        return
-
-    await state.update_data(_finished=True)
 
     profile_url = (
         f"https://t.me/{data['username']}"
@@ -250,56 +243,35 @@ async def order_finish(message: Message, state: FSMContext):
         else f"tg://user?id={data['user_id']}"
     )
 
-    raw_phone = message.contact.phone_number.strip()
-    phone = raw_phone if raw_phone.startswith("+") else f"+{raw_phone}"
+    phone = message.contact.phone_number
 
     text = (
-        "🛒 <b>YANGI BUYURTMA</b>\n\n"
-        f"🆔 <b>Mahsulot:</b> {data['product_id']}\n"
-        f"👕 <b>O‘lcham:</b> {data['size']}\n"
-        f"📦 <b>Soni:</b> {data['quantity']}\n\n"
-        f"📞 <b>Tel:</b> <a href='tel:{phone}'>{phone}</a>"
+        "🛒 YANGI BUYURTMA\n\n"
+        f"🆔 Mahsulot: {data['product_id']}\n"
+        f"👕 O‘lcham: {data['size']}\n"
+        f"📦 Soni: {data['quantity']}\n\n"
+        f"📞 Tel: <a href='tel:{phone}'>{phone}</a>"
     )
 
     await bot.send_message(
         ADMIN_CHANNEL_ID,
         text,
-        parse_mode="HTML",
-        disable_web_page_preview=True,
+        parse_mode="HTML",   # 🔥 MUHIM
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)],
-                [InlineKeyboardButton(text="📞 Qo‘ng‘iroq qilish", url=f"tel:{phone}")]
-            ]
+            inline_keyboard=[[InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)]]
         )
     )
 
     await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
-
-    # 🔥 FSMNI KECHIKTIRIB YOPAMIZ
-    await asyncio.sleep(0.3)
     await state.clear()
-
-@dp.message(StateFilter(OrderState.phone), F.text)
-async def order_phone_invalid(message: Message):
-    await message.answer(
-        "📞 Iltimos, telefon raqamingizni *tugma orqali* yuboring.",
-        parse_mode="Markdown"
-    )
-
-
 
 
 # ================= TOPIC WRITE GUARD =================
 @dp.message(
     F.chat.id == MARKET_GROUP_ID,
-    StateFilter(None)
+    StateFilter(None)   # FSM YO‘Q PAYTDA GINA
 )
 async def topic_write_guard(message: Message):
-    # ❌ CONTACT SERVICE UPDATE HAM TEGMASIN
-    if message.contact is not None:
-        return
-
     if message.message_thread_id is None:
         return
 
@@ -309,19 +281,16 @@ async def topic_write_guard(message: Message):
     if message.text and message.text.startswith("/"):
         return
 
-    if (
-        message.photo
-        or message.document
-        or message.video
-        or message.location
-    ):
+    if await is_admin(message.chat.id, message.from_user.id):
         return
 
+    # User xabarini o‘chiramiz
     try:
         await message.delete()
     except:
         pass
 
+    # Ogohlantirish yuboramiz
     try:
         warn = await message.answer(
             "❌ Bu bo‘limda faqat buyurtma berishingiz mumkin.\n"
