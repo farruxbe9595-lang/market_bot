@@ -18,6 +18,8 @@ from aiogram.types import (
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
+
 
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -119,7 +121,7 @@ async def add_product(message: Message, state: FSMContext):
     await state.update_data(msgs=[message.message_id, msg.message_id])
     await state.set_state(AddProductState.photo)
 
-@dp.message(AddProductState.photo, F.photo)
+@dp.message(StateFilter(AddProductState.photo))
 async def add_product_photo(message: Message, state: FSMContext):
     data = await state.get_data()
     data["msgs"].append(message.message_id)
@@ -134,8 +136,9 @@ async def add_product_photo(message: Message, state: FSMContext):
     await state.update_data(msgs=data["msgs"])
     await state.set_state(AddProductState.text)
 
-@dp.message(AddProductState.text, F.text)
+@dp.message(StateFilter(AddProductState.text), F.text)
 async def add_product_text(message: Message, state: FSMContext):
+
     data = await state.get_data()
     data["msgs"].append(message.message_id)
 
@@ -146,8 +149,9 @@ async def add_product_text(message: Message, state: FSMContext):
     await state.update_data(msgs=data["msgs"])
     await state.set_state(AddProductState.product_id)
 
-@dp.message(AddProductState.product_id, F.text)
+@dp.message(StateFilter(AddProductState.product_id), F.text)
 async def add_product_publish(message: Message, state: FSMContext):
+
     data = await state.get_data()
     data["msgs"].append(message.message_id)
 
@@ -201,7 +205,7 @@ async def cancel_order(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("❌ Buyurtma bekor qilindi.", reply_markup=ReplyKeyboardRemove())
 
-@dp.message(OrderState.size, F.text)
+@dp.message(StateFilter(OrderState.size), F.text)
 async def order_size(message: Message, state: FSMContext):
     await state.update_data(size=message.text)
     await message.answer("📦 Nechta dona?", reply_markup=quantity_kb())
@@ -217,7 +221,7 @@ async def quantity_btn(message: Message, state: FSMContext):
 async def quantity_custom(message: Message):
     await message.answer("✍️ Sonni yozing:", reply_markup=ReplyKeyboardRemove())
 
-@dp.message(OrderState.quantity, F.text)
+@dp.message(StateFilter(OrderState.quantity), F.text)
 async def quantity_text(message: Message, state: FSMContext):
     if not message.text.isdigit():
         return
@@ -225,7 +229,7 @@ async def quantity_text(message: Message, state: FSMContext):
     await message.answer("📱 Telefon raqamingizni yuboring:", reply_markup=phone_kb())
     await state.set_state(OrderState.phone)
 
-@dp.message(OrderState.phone, F.contact)
+@dp.message(StateFilter(OrderState.phone), F.contact)
 async def order_finish(message: Message, state: FSMContext):
     data = await state.get_data()
 
@@ -235,17 +239,20 @@ async def order_finish(message: Message, state: FSMContext):
         else f"tg://user?id={data['user_id']}"
     )
 
+    phone = message.contact.phone_number
+
     text = (
         "🛒 YANGI BUYURTMA\n\n"
         f"🆔 Mahsulot: {data['product_id']}\n"
         f"👕 O‘lcham: {data['size']}\n"
         f"📦 Soni: {data['quantity']}\n\n"
-        f"📞 Tel: {message.contact.phone_number}"
+        f"📞 Tel: <a href='tel:{phone}'>{phone}</a>"
     )
 
     await bot.send_message(
         ADMIN_CHANNEL_ID,
         text,
+        parse_mode="HTML",   # 🔥 MUHIM
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[[InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)]]
         )
@@ -253,47 +260,31 @@ async def order_finish(message: Message, state: FSMContext):
 
     await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
     await state.clear()
-from aiogram.filters import StateFilter
+
 
 # ================= TOPIC WRITE GUARD =================
 @dp.message(
     F.chat.id == MARKET_GROUP_ID,
-    StateFilter(None)   # 🔥 FSM YO‘Q PAYTDA GINA ISHLAYDI
+    StateFilter(None)   # 🔥 FSM YO‘Q PAYTDA GINA
 )
 async def topic_write_guard(message: Message):
-    # Topic bo‘lmasa — aralashmaymiz
     if message.message_thread_id is None:
         return
 
-    # Muhokama topic — ruxsat
     if message.message_thread_id == DISCUSSION_TOPIC_ID:
         return
 
-    # Buyruqlarni tegma
     if message.text and message.text.startswith("/"):
         return
 
-    # Admin bo‘lsa — ruxsat
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
-    # Oddiy user yozdi — o‘chiramiz
     try:
         await message.delete()
     except:
         pass
 
-    # Qisqa ogohlantirish
-    try:
-        warn = await message.answer(
-            "❌ Bu bo‘limda faqat buyurtma berish mumkin.\n"
-            "💬 Muhokama uchun *Muhokama chat*dan foydalaning.",
-            parse_mode="Markdown"
-        )
-        await asyncio.sleep(3)
-        await warn.delete()
-    except:
-        pass
 
 # ================= RUN =================
 async def main():
