@@ -268,7 +268,8 @@ async def order_finish(message: Message, state: FSMContext):
 
     await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
     await state.clear()   # 🔥 FAQAT SHU YERDA
-@dp.message(StateFilter(OrderState.phone))
+    
+@dp.message(StateFilter(OrderState.phone), F.text)
 async def order_phone_invalid(message: Message):
     await message.answer(
         "📞 Iltimos, telefon raqamingizni *tugma orqali* yuboring.",
@@ -276,40 +277,35 @@ async def order_phone_invalid(message: Message):
     )
 
 
-# ================= TOPIC WRITE GUARD =================
-@dp.message(F.chat.id == MARKET_GROUP_ID)
-async def topic_write_guard(message: Message, state: FSMContext):
-    # 🔒 FSM ishlayapti — umuman aralashma
-    if await state.get_state() is not None:
-        return
 
-    # Topic yo‘q — tegma
+# ================= TOPIC WRITE GUARD =================
+@dp.message(
+    F.chat.id == MARKET_GROUP_ID,
+    StateFilter(None)   # 🔥 FAQAT FSM YO‘Q PAYTDA
+)
+async def topic_write_guard(message: Message):
     if message.message_thread_id is None:
         return
 
-    # Muhokama topic — ruxsat
     if message.message_thread_id == DISCUSSION_TOPIC_ID:
         return
 
-    # Buyruqlar — ruxsat
     if message.text and message.text.startswith("/"):
         return
 
-    # 🔥 CONTACT / PHOTO / DOCUMENT / LOCATION — TEGMA
+    # MEDIA / CONTACT — TEGMA
     if (
         message.contact
         or message.photo
         or message.document
-        or message.location
         or message.video
+        or message.location
     ):
         return
 
-    # Admin — ruxsat
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
-    # ❌ Noto‘g‘ri joyga yozildi
     try:
         await message.delete()
     except:
