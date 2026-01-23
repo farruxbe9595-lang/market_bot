@@ -232,7 +232,6 @@ async def quantity_text(message: Message, state: FSMContext):
     await state.update_data(quantity=message.text)
     await message.answer("📱 Telefon raqamingizni yuboring:", reply_markup=phone_kb())
     await state.set_state(OrderState.phone)
-
 @dp.message(StateFilter(OrderState.phone), F.contact)
 async def order_finish(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -268,7 +267,13 @@ async def order_finish(message: Message, state: FSMContext):
     )
 
     await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
-    await state.clear()
+    await state.clear()   # 🔥 FAQAT SHU YERDA
+@dp.message(StateFilter(OrderState.phone))
+async def order_phone_invalid(message: Message):
+    await message.answer(
+        "📞 Iltimos, telefon raqamingizni *tugma orqali* yuboring.",
+        parse_mode="Markdown"
+    )
 
 
 # ================= TOPIC WRITE GUARD =================
