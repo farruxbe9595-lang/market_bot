@@ -115,12 +115,16 @@ async def add_product_text(message: Message, state: FSMContext):
 @dp.message(StateFilter(AddProductState.product_id), F.text)
 async def add_product_publish(message: Message, state: FSMContext):
     data = await state.get_data()
+    msgs = data.get("msgs", [])
+    msgs.append(message.message_id)   # 🔥 SHU YER MUHIM
+
+    product_id = message.text.strip()
 
     await bot.send_photo(
         chat_id=MARKET_GROUP_ID,
         message_thread_id=data["topic_id"],
         photo=data["product_photo"],
-        caption=f"🆔 ID: {message.text}\n\n{data['product_text']}",
+        caption=f"🆔 ID: {product_id}\n\n{data['product_text']}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="🛒 Buyurtma berish", callback_data="noop")]
@@ -128,7 +132,8 @@ async def add_product_publish(message: Message, state: FSMContext):
         )
     )
 
-    for mid in data["msgs"]:
+    # 🔥 ENDI XAVFSIZ TOZALASH
+    for mid in msgs:
         try:
             await bot.delete_message(message.chat.id, mid)
         except:
