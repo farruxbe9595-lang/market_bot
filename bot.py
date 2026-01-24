@@ -18,6 +18,15 @@ from aiogram.types import (
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
+ORDERS: dict[int, dict] = {}
+
+def admin_cancel_kb():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_admin")]
+        ]
+    )
+
 
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
