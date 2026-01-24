@@ -121,19 +121,25 @@ async def add_product(message: Message, state: FSMContext):
     await state.update_data(msgs=[message.message_id, msg.message_id])
     await state.set_state(AddProductState.photo)
 
-@dp.message(StateFilter(AddProductState.photo), F.photo)
+@dp.message(StateFilter(AddProductState.photo))
 async def add_product_photo(message: Message, state: FSMContext):
+    if not message.photo:
+        await message.answer("❗ Iltimos, mahsulot rasmini yuboring.")
+        return
+
     data = await state.get_data()
-    data["msgs"].append(message.message_id)
+    msgs = data.get("msgs", [])
+    msgs.append(message.message_id)
 
     await state.update_data(
         product_photo=message.photo[-1].file_id,
-        msgs=data["msgs"]
+        msgs=msgs
     )
 
-    msg = await message.answer("📝 Tavsifni yuboring:", reply_markup=admin_cancel_kb())
-    data["msgs"].append(msg.message_id)
-    await state.update_data(msgs=data["msgs"])
+    msg = await message.answer("📝 Tavsifni yuboring:")
+    msgs.append(msg.message_id)
+    await state.update_data(msgs=msgs)
+
     await state.set_state(AddProductState.text)
 
 @dp.message(StateFilter(AddProductState.photo))
@@ -227,24 +233,6 @@ async def order_size(message: Message, state: FSMContext):
 
     await message.answer("📦 Nechta dona?", reply_markup=quantity_kb())
     await state.set_state(OrderState.quantity)
-# ====== SIZE ======
-@dp.message(StateFilter(OrderState.size))
-async def order_size(message: Message, state: FSMContext):
-    text = message.text.strip()
-
-    if text == "❌ Buyurtmani bekor qilish":
-        await state.clear()
-        await message.answer("❌ Buyurtma bekor qilindi.", reply_markup=ReplyKeyboardRemove())
-        return
-
-    data = await state.get_data()
-    if data.get("size"):
-        return  # 🔒 qayta bosishni bloklaydi
-
-    await state.update_data(size=text)
-
-    await message.answer("📦 Nechta dona?", reply_markup=quantity_kb())
-    await state.set_state(OrderState.quantity)
 # ====== QUANTITY (BITTA HANDLER) ======
 @dp.message(StateFilter(OrderState.quantity))
 async def order_quantity(message: Message, state: FSMContext):
@@ -264,14 +252,14 @@ async def order_quantity(message: Message, state: FSMContext):
         await message.answer("❗ 1 dan 10 gacha kiriting.")
         return
 
-    data = await state.get_data()
-    if data.get("quantity"):
-        return  # 🔒 qayta bosish yo‘q
-
     await state.update_data(quantity=qty)
 
-    await message.answer("📱 Telefon raqamingizni yuboring:", reply_markup=phone_kb())
+    await message.answer(
+        "📱 Telefon raqamingizni yuboring:",
+        reply_markup=phone_kb()
+    )
     await state.set_state(OrderState.phone)
+
 
 # ====== PHONE ======
 @dp.message(StateFilter(OrderState.phone), F.contact)
