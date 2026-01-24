@@ -15,51 +15,41 @@ from aiogram.types import (
     ReplyKeyboardRemove,
     CallbackQuery
 )
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-ORDERS: dict[int, dict] = {}
-
-def admin_cancel_kb():
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_admin")]
-        ]
-    )
-
 
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN topilmadi!")
 
 MARKET_GROUP_ID = -1003618675735
 ADMIN_CHANNEL_ID = -1003631320685
+DISCUSSION_TOPIC_ID = 1  # Muhokama chat
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
+# ================= STORAGE =================
+ORDERS: dict[int, dict] = {}
 
-# ================= TOPIC RULES =================
-DISCUSSION_TOPIC_ID = 1  # Muhokama chat
-
-# ================= STATES =================
+# ================= FSM (ADMIN ONLY) =================
 class AddProductState(StatesGroup):
     photo = State()
     text = State()
     product_id = State()
 
+# ================= HELPERS =================
+def admin_cancel_kb():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton("❌ Bekor qilish", callback_data="cancel_admin")]]
+    )
 
-
-# ================= ADMIN CHECK =================
 async def is_admin(chat_id: int, user_id: int) -> bool:
     admins = await bot.get_chat_administrators(chat_id)
     return any(a.user.id == user_id for a in admins)
 
-
-
-# ================= ADMIN CLEANUP =================
 async def cleanup_messages(chat_id: int, msg_ids: list[int]):
     for mid in msg_ids:
         try:
@@ -67,48 +57,7 @@ async def cleanup_messages(chat_id: int, msg_ids: list[int]):
         except:
             pass
 
-# ================= TOPIC WRITE CONTROL (TO‘G‘RILANGAN) =================
-@dp.message(
-    F.chat.id == MARKET_GROUP_ID,
-    F.from_user.is_bot == False
-)
-async def topic_write_guard(message: Message, state: FSMContext):
-    # FSM ishlayapti — aralashmaymiz
-    if await state.get_state() is not None:
-        return
-
-    # Topic bo‘lmasa — chiqib ket
-    if message.message_thread_id is None:
-        return
-
-    topic_id = message.message_thread_id
-
-    # Muhokama topic — ruxsat
-    if topic_id == DISCUSSION_TOPIC_ID:
-        return
-
-    # Admin bo‘lsa — ruxsat
-    if await is_admin(message.chat.id, message.from_user.id):
-        return
-
-    # Oddiy user yozdi — o‘chiramiz
-    try:
-        await message.delete()
-    except:
-        pass
-
-    try:
-        warn = await message.answer(
-            "❌ Bu bo‘limda faqat buyurtma berishingiz mumkin.\n"
-            "💬 Muhokama uchun *Muhokama chat*dan foydalaning.",
-            parse_mode="Markdown"
-        )
-        await asyncio.sleep(3)
-        await warn.delete()
-    except:
-        pass
-
-# ================= /add_product =================
+# ================= ADD PRODUCT (ADMIN FSM) =================
 @dp.message(Command("add_product"))
 async def add_product(message: Message, state: FSMContext):
     if message.chat.id != MARKET_GROUP_ID:
@@ -116,17 +65,15 @@ async def add_product(message: Message, state: FSMContext):
     if not await is_admin(message.chat.id, message.from_user.id):
         return
     if message.message_thread_id is None:
-        await message.answer("❗ Topic ichida yozing.")
+        await message.answer("❗ Mahsulotni faqat topic ichida qo‘shing.")
         return
 
     await state.clear()
+    msg = await message.answer("🖼 Mahsulot rasmini yuboring:", reply_markup=admin_cancel_kb())
     await state.update_data(
         topic_id=message.message_thread_id,
-        msgs=[message.message_id]
+        msgs=[message.message_id, msg.message_id]
     )
-
-    msg = await message.answer("🖼 Mahsulot rasmini yuboring:", reply_markup=admin_cancel_kb())
-    await state.update_data(msgs=[message.message_id, msg.message_id])
     await state.set_state(AddProductState.photo)
 
 @dp.message(AddProductState.photo, F.photo)
@@ -134,14 +81,11 @@ async def add_product_photo(message: Message, state: FSMContext):
     data = await state.get_data()
     data["msgs"].append(message.message_id)
 
+    msg = await message.answer("📝 Tavsifni yuboring:", reply_markup=admin_cancel_kb())
     await state.update_data(
         product_photo=message.photo[-1].file_id,
-        msgs=data["msgs"]
+        msgs=data["msgs"] + [msg.message_id]
     )
-
-    msg = await message.answer("📝 Tavsifni yuboring:", reply_markup=admin_cancel_kb())
-    data["msgs"].append(msg.message_id)
-    await state.update_data(msgs=data["msgs"])
     await state.set_state(AddProductState.text)
 
 @dp.message(AddProductState.text, F.text)
@@ -149,18 +93,16 @@ async def add_product_text(message: Message, state: FSMContext):
     data = await state.get_data()
     data["msgs"].append(message.message_id)
 
-    await state.update_data(product_text=message.text, msgs=data["msgs"])
-
     msg = await message.answer("🆔 Mahsulot ID yozing:", reply_markup=admin_cancel_kb())
-    data["msgs"].append(msg.message_id)
-    await state.update_data(msgs=data["msgs"])
+    await state.update_data(
+        product_text=message.text,
+        msgs=data["msgs"] + [msg.message_id]
+    )
     await state.set_state(AddProductState.product_id)
 
 @dp.message(AddProductState.product_id, F.text)
 async def add_product_publish(message: Message, state: FSMContext):
     data = await state.get_data()
-    data["msgs"].append(message.message_id)
-
     product_id = message.text.strip()
 
     kb = InlineKeyboardMarkup(
@@ -168,7 +110,6 @@ async def add_product_publish(message: Message, state: FSMContext):
             InlineKeyboardButton(
                 text="🛒 Buyurtma berish",
                 callback_data=f"order:{product_id}"
-
             )
         ]]
     )
@@ -190,16 +131,15 @@ async def cancel_admin(call: CallbackQuery, state: FSMContext):
     await cleanup_messages(call.message.chat.id, data.get("msgs", []))
     await state.clear()
 
-# ================= ORDER FLOW (O‘ZGARMAGAN) =================
-ORDERS: dict[int, dict] = {}
+# ================= ORDER FLOW (NO FSM, TELEGRAM SAFE) =================
 @dp.callback_query(F.data.startswith("order:"))
 async def order_start(call: CallbackQuery):
     user_id = call.from_user.id
     product_id = call.data.split(":", 1)[1]
 
-    # eski buyurtma bo‘lsa — tozalaymiz
     ORDERS[user_id] = {
-        "product_id": product_id
+        "product_id": product_id,
+        "step": "size"
     }
 
     await call.message.answer(
@@ -211,23 +151,20 @@ async def order_start(call: CallbackQuery):
                     InlineKeyboardButton("👕 L", callback_data="size:L"),
                     InlineKeyboardButton("👕 XL", callback_data="size:XL"),
                 ],
-                [
-                    InlineKeyboardButton("📦 O‘lcham kerak emas", callback_data="size:none")
-                ]
+                [InlineKeyboardButton("📦 O‘lcham kerak emas", callback_data="size:none")]
             ]
         )
     )
-
     await call.answer()
+
 @dp.callback_query(F.data.startswith("size:"))
 async def choose_size(call: CallbackQuery):
-    user_id = call.from_user.id
-    if user_id not in ORDERS:
-        await call.answer("Buyurtma topilmadi", show_alert=True)
+    data = ORDERS.get(call.from_user.id)
+    if not data or data.get("step") != "size":
         return
 
-    size = call.data.split(":", 1)[1]
-    ORDERS[user_id]["size"] = "Kerak emas" if size == "none" else size
+    data["size"] = "Kerak emas" if call.data.endswith("none") else call.data.split(":")[1]
+    data["step"] = "qty"
 
     await call.message.edit_text(
         "📦 Nechta dona?",
@@ -245,32 +182,35 @@ async def choose_size(call: CallbackQuery):
             ]
         )
     )
-
     await call.answer()
+
 @dp.callback_query(F.data.startswith("qty:"))
 async def choose_qty(call: CallbackQuery):
-    user_id = call.from_user.id
-    if user_id not in ORDERS:
+    data = ORDERS.get(call.from_user.id)
+    if not data or data.get("step") != "qty":
         return
 
-    ORDERS[user_id]["quantity"] = call.data.split(":", 1)[1]
+    data["quantity"] = call.data.split(":")[1]
+    data["step"] = "phone"
 
     await call.message.answer(
-        "📞 Telefon raqamingizni yuboring:",
-        reply_markup=ReplyKeyboardMarkup(
-            [[KeyboardButton("📞 Telefon yuborish", request_contact=True)]],
-            resize_keyboard=True,
-            one_time_keyboard=True
+        "📞 Telefon raqamingizni yuboring (botga shaxsiy chatda):",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[
+                InlineKeyboardButton(
+                    text="📞 Botga o‘tish",
+                    url=f"https://t.me/{(await bot.get_me()).username}"
+                )
+            ]]
         )
     )
-
     await call.answer()
+
+# ================= PRIVATE CONTACT =================
 @dp.message(F.contact)
 async def finish_order(message: Message):
-    user_id = message.from_user.id
-    data = ORDERS.pop(user_id, None)
-
-    if not data:
+    data = ORDERS.pop(message.from_user.id, None)
+    if not data or data.get("step") != "phone":
         return
 
     phone = message.contact.phone_number
@@ -279,14 +219,44 @@ async def finish_order(message: Message):
 
     await bot.send_message(
         ADMIN_CHANNEL_ID,
-        f"🛒 YANGI BUYURTMA\n\n"
-        f"🆔 Mahsulot: {data['product_id']}\n"
-        f"👕 O‘lcham: {data['size']}\n"
-        f"📦 Soni: {data['quantity']}\n"
-        f"📞 Tel: {phone}"
+        f"🛒 <b>YANGI BUYURTMA</b>\n\n"
+        f"🆔 <b>Mahsulot:</b> {data['product_id']}\n"
+        f"👕 <b>O‘lcham:</b> {data['size']}\n"
+        f"📦 <b>Soni:</b> {data['quantity']}\n"
+        f"📞 <b>Tel:</b> {phone}",
+        parse_mode="HTML"
     )
 
-    await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
+    await message.answer(
+        "✅ Buyurtma qabul qilindi!\nOperatorlar siz bilan bog‘lanadi.",
+        reply_markup=ReplyKeyboardRemove()
+    )
+
+# ================= TOPIC WRITE GUARD (LAST) =================
+@dp.message(F.chat.id == MARKET_GROUP_ID, F.text)
+async def topic_guard(message: Message, state: FSMContext):
+    if await state.get_state():
+        return
+    if message.message_thread_id is None:
+        return
+    if message.message_thread_id == DISCUSSION_TOPIC_ID:
+        return
+    if await is_admin(message.chat.id, message.from_user.id):
+        return
+    if message.text.startswith("/"):
+        return
+
+    try:
+        await message.delete()
+        warn = await message.answer(
+            "❌ Bu bo‘limda yozish taqiqlangan.\n"
+            "💬 Fikrlar faqat *Muhokama chat*da.",
+            parse_mode="Markdown"
+        )
+        await asyncio.sleep(3)
+        await warn.delete()
+    except:
+        pass
 
 # ================= RUN =================
 async def main():
