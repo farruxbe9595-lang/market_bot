@@ -148,19 +148,29 @@ async def cancel_admin(call: CallbackQuery, state: FSMContext):
     await state.clear()
     await call.answer("Bekor qilindi")
 
-# ================= TOPIC GUARD (ENG OXIRI) =================
-@dp.message(F.chat.id == MARKET_GROUP_ID)
+@dp.message(F.chat.id == MARKET_GROUP_ID, F.text)
 async def topic_guard(message: Message, state: FSMContext):
+    # FSM ishlayapti — tegma
     if await state.get_state() is not None:
         return
+
+    # Muhokama chat — ruxsat
     if message.message_thread_id == DISCUSSION_TOPIC_ID:
         return
+
+    # Admin — ruxsat
     if await is_admin(message.chat.id, message.from_user.id):
         return
+
+    # Buyruqlarni o‘chirma
+    if message.text.startswith("/"):
+        return
+
     try:
         await message.delete()
     except:
         pass
+
 
 # ================= RUN =================
 async def main():
