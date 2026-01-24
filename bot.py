@@ -76,10 +76,20 @@ async def add_product_start(message: Message, state: FSMContext):
     )
     await state.set_state(AddProductState.photo)
 
-@dp.message(AddProductState.photo, F.photo)
+@dp.message(
+    AddProductState.photo,
+    F.photo | (F.document & F.document.mime_type.startswith("image/"))
+)
 async def add_product_photo(message: Message, state: FSMContext):
     data = await state.get_data()
-    data["msgs"].append(message.message_id)
+    msgs = data.get("msgs", [])
+    msgs.append(message.message_id)
+
+    # photo yoki document dan file_id olish
+    if message.photo:
+        file_id = message.photo[-1].file_id
+    else:
+        file_id = message.document.file_id
 
     msg = await message.answer(
         "📝 Tavsifni yuboring:",
@@ -87,10 +97,12 @@ async def add_product_photo(message: Message, state: FSMContext):
     )
 
     await state.update_data(
-        product_photo=message.photo[-1].file_id,
-        msgs=data["msgs"] + [msg.message_id]
+        product_photo=file_id,
+        msgs=msgs + [msg.message_id]
     )
+
     await state.set_state(AddProductState.text)
+
 
 @dp.message(AddProductState.text, F.text)
 async def add_product_text(message: Message, state: FSMContext):
