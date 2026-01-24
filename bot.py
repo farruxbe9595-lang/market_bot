@@ -142,10 +142,6 @@ async def add_product_photo(message: Message, state: FSMContext):
 
     await state.set_state(AddProductState.text)
 
-@dp.message(StateFilter(AddProductState.photo))
-async def add_product_photo_invalid(message: Message):
-    await message.answer("❗ Iltimos, mahsulot rasmini yuboring.")
-
 @dp.message(StateFilter(AddProductState.text), F.text)
 async def add_product_text(message: Message, state: FSMContext):
 
@@ -252,6 +248,10 @@ async def order_quantity(message: Message, state: FSMContext):
         await message.answer("❗ 1 dan 10 gacha kiriting.")
         return
 
+    data = await state.get_data()
+    if data.get("quantity") is not None:
+        return  # 🔒 QAYTA BOSISHNI BLOKLAYDI
+
     await state.update_data(quantity=qty)
 
     await message.answer(
@@ -259,6 +259,7 @@ async def order_quantity(message: Message, state: FSMContext):
         reply_markup=phone_kb()
     )
     await state.set_state(OrderState.phone)
+
 
 
 # ====== PHONE ======
