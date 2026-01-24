@@ -202,7 +202,7 @@ async def cancel_add_product(call: CallbackQuery, state: FSMContext):
 ORDERS: dict[int, dict] = {}
 # ================= ORDER FLOW (FINAL FIX) =================
 # ================= ORDER START =================
-@dp.message(CommandStart())
+@dp.message(F.text.startswith("/start"))
 async def start_order(message: Message):
     user_id = message.from_user.id
     ORDERS.pop(user_id, None)  # eski buyurtmani tozalash
