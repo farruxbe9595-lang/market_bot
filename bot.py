@@ -212,14 +212,6 @@ async def cancel_add_product(call: CallbackQuery, state: FSMContext):
 ORDERS: dict[int, dict] = {}
 # ================= ORDER FLOW (FINAL FIX) =================
 # ================= ORDER START =================
-@dp.message(CommandStart(), F.text == "/start")
-async def start_plain(message: Message):
-    await message.answer(
-        "🛒 Buyurtma berish uchun mahsulotdagi\n"
-        "«🛒 Buyurtma berish» tugmasini bosing."
-    )
-
-
 @dp.message(CommandStart(deep_link=True))
 async def start_order(message: Message):
     user_id = message.from_user.id
@@ -227,14 +219,10 @@ async def start_order(message: Message):
     # eski buyurtmani tozalash
     ORDERS.pop(user_id, None)
 
-    # 🔐 deep link tekshiruvi
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer(
-            "🛒 Buyurtma berish uchun mahsulotdagi\n"
-            "«🛒 Buyurtma berish» tugmasini bosing."
-        )
-        return
+        return  # 👈 BU YERDA HECH NARSA CHIQMAYDI
+
 
     product_id = parts[1].strip()
 
@@ -283,6 +271,12 @@ async def start_order(message: Message):
         reply_markup=kb
     )
 
+@dp.message(CommandStart(), F.text == "/start")
+async def start_plain(message: Message):
+    await message.answer(
+        "🛒 Buyurtma berish uchun mahsulotdagi\n"
+        "«🛒 Buyurtma berish» tugmasini bosing."
+    )
 
 # ================= SIZE =================
 @dp.callback_query(F.data.startswith("size:"))
