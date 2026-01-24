@@ -1,9 +1,6 @@
 import asyncio
-import sys
 import os
-
-if sys.platform.startswith("win"):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+import sys
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
@@ -12,47 +9,42 @@ from aiogram.types import (
     InlineKeyboardButton,
     CallbackQuery
 )
-from aiogram.filters import Command
-from aiogram.fsm.state import State, StatesGroup
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
+
+# ================= WINDOWS =================
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN topilmadi!")
-
 MARKET_GROUP_ID = -1003618675735
-DISCUSSION_TOPIC_ID = 1  # 💬 Muhokama chat
+DISCUSSION_TOPIC_ID = 1
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
-# ================= FSM (ADMIN) =================
+# ================= STATES =================
 class AddProductState(StatesGroup):
     photo = State()
     text = State()
     product_id = State()
 
-# ================= HELPERS =================
+# ================= KEYBOARD =================
 def cancel_kb():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_add")]
+            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_admin")]
         ]
     )
 
+# ================= ADMIN CHECK =================
 async def is_admin(chat_id: int, user_id: int) -> bool:
     admins = await bot.get_chat_administrators(chat_id)
     return any(a.user.id == user_id for a in admins)
 
-async def cleanup(chat_id: int, msg_ids: list[int]):
-    for mid in msg_ids:
-        try:
-            await bot.delete_message(chat_id, mid)
-        except:
-            pass
-
-# ================= /add_product (ADMIN) =================
+# ================= ADD PRODUCT =================
 @dp.message(Command("add_product"))
 async def add_product_start(message: Message, state: FSMContext):
     if message.chat.id != MARKET_GROUP_ID:
@@ -60,7 +52,7 @@ async def add_product_start(message: Message, state: FSMContext):
     if not await is_admin(message.chat.id, message.from_user.id):
         return
     if message.message_thread_id is None:
-        await message.answer("❗ Mahsulotni faqat topic ichida qo‘shing.")
+        await message.answer("❗ Faqat topic ichida ishlaydi")
         return
 
     await state.clear()
@@ -76,8 +68,9 @@ async def add_product_start(message: Message, state: FSMContext):
     )
     await state.set_state(AddProductState.photo)
 
+# ================= PHOTO =================
 @dp.message(
-    AddProductState.photo,
+    StateFilter(AddProductState.photo),
     F.photo | (F.document & F.document.mime_type.startswith("image/"))
 )
 async def add_product_photo(message: Message, state: FSMContext):
@@ -85,7 +78,6 @@ async def add_product_photo(message: Message, state: FSMContext):
     msgs = data.get("msgs", [])
     msgs.append(message.message_id)
 
-    # photo yoki document dan file_id olish
     if message.photo:
         file_id = message.photo[-1].file_id
     else:
@@ -100,88 +92,73 @@ async def add_product_photo(message: Message, state: FSMContext):
         product_photo=file_id,
         msgs=msgs + [msg.message_id]
     )
-
     await state.set_state(AddProductState.text)
 
-
-@dp.message(AddProductState.text, F.text)
+# ================= TEXT =================
+@dp.message(StateFilter(AddProductState.text), F.text)
 async def add_product_text(message: Message, state: FSMContext):
     data = await state.get_data()
-    data["msgs"].append(message.message_id)
+    msgs = data["msgs"] + [message.message_id]
 
     msg = await message.answer(
-        "🆔 Mahsulot ID ni yuboring:",
+        "🆔 Mahsulot ID yozing:",
         reply_markup=cancel_kb()
     )
 
     await state.update_data(
         product_text=message.text,
-        msgs=data["msgs"] + [msg.message_id]
+        msgs=msgs + [msg.message_id]
     )
     await state.set_state(AddProductState.product_id)
 
-@dp.message(AddProductState.product_id, F.text)
+# ================= PUBLISH =================
+@dp.message(StateFilter(AddProductState.product_id), F.text)
 async def add_product_publish(message: Message, state: FSMContext):
     data = await state.get_data()
-    product_id = message.text.strip()
-
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="🛒 Buyurtma berish", callback_data="order_stub")]
-        ]
-    )
 
     await bot.send_photo(
         chat_id=MARKET_GROUP_ID,
         message_thread_id=data["topic_id"],
         photo=data["product_photo"],
-        caption=f"🆔 ID: {product_id}\n\n{data['product_text']}",
-        reply_markup=kb
+        caption=f"🆔 ID: {message.text}\n\n{data['product_text']}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🛒 Buyurtma berish", callback_data="noop")]
+            ]
+        )
     )
 
-    await cleanup(message.chat.id, data["msgs"])
+    for mid in data["msgs"]:
+        try:
+            await bot.delete_message(message.chat.id, mid)
+        except:
+            pass
+
     await state.clear()
 
-@dp.callback_query(F.data == "cancel_add")
-async def cancel_add(call: CallbackQuery, state: FSMContext):
+# ================= CANCEL =================
+@dp.callback_query(F.data == "cancel_admin")
+async def cancel_admin(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    await cleanup(call.message.chat.id, data.get("msgs", []))
+    for mid in data.get("msgs", []):
+        try:
+            await bot.delete_message(call.message.chat.id, mid)
+        except:
+            pass
     await state.clear()
     await call.answer("Bekor qilindi")
 
-# ================= TOPIC WRITE GUARD (ENG OXIRI) =================
-@dp.message(F.chat.id == MARKET_GROUP_ID, F.text)
+# ================= TOPIC GUARD (ENG OXIRI) =================
+@dp.message(F.chat.id == MARKET_GROUP_ID)
 async def topic_guard(message: Message, state: FSMContext):
-    # FSM jarayoni bo‘lsa — tegma
-    if await state.get_state():
+    if await state.get_state() is not None:
         return
-
-    # Topic bo‘lmasa — tegma
-    if message.message_thread_id is None:
-        return
-
-    # Muhokama chat — ruxsat
     if message.message_thread_id == DISCUSSION_TOPIC_ID:
         return
-
-    # Admin — ruxsat
     if await is_admin(message.chat.id, message.from_user.id):
         return
-
-    # Buyruqlarni o‘chirma
-    if message.text.startswith("/"):
-        return
-
-    # Oddiy user yozdi — o‘chiramiz
     try:
         await message.delete()
-        warn = await message.answer(
-            "❌ Bu bo‘limda yozish taqiqlangan.\n"
-            "💬 Fikrlar faqat *Muhokama chat*da.",
-            parse_mode="Markdown"
-        )
-        await asyncio.sleep(3)
-        await warn.delete()
     except:
         pass
 
