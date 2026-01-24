@@ -31,7 +31,8 @@ bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
 # ================= TOPIC RULES =================
-DISCUSSION_TOPIC_ID = 1  # Muhokama chat
+ALLOWED_TOPIC_ID = 1  # 💬 Muhokama chat
+
 
 # ================= ADMIN CHECK =================
 async def is_admin(chat_id: int, user_id: int) -> bool:
@@ -153,6 +154,14 @@ async def add_product_publish(message: Message, state: FSMContext):
     data = await state.get_data()
     data["msgs"].append(message.message_id)
 
+    # 🔐 HIMOYA: bot username hali olinmagan bo‘lsa
+    if not BOT_USERNAME:
+        await message.answer(
+            "❗ Bot username hali yuklanmadi.\n"
+            "⏳ Iltimos, 2–3 soniya kutib qayta urinib ko‘ring."
+        )
+        return
+
     product_id = message.text.strip()
 
     kb = InlineKeyboardMarkup(
@@ -160,7 +169,8 @@ async def add_product_publish(message: Message, state: FSMContext):
             [
                 InlineKeyboardButton(
                     text="🛒 Buyurtma berish",
-                    url=f"https://t.me/{(await bot.me()).username}?start={product_id}"
+                    url=f"https://t.me/{BOT_USERNAME}?start={product_id}"
+
                 )
             ]
         ]
@@ -202,8 +212,9 @@ async def cancel_add_product(call: CallbackQuery, state: FSMContext):
 ORDERS: dict[int, dict] = {}
 # ================= ORDER FLOW (FINAL FIX) =================
 # ================= ORDER START =================
-@dp.message(F.text.startswith("/start"))
+@dp.message(CommandStart(deep_link=True))
 async def start_order(message: Message):
+
     user_id = message.from_user.id
     ORDERS.pop(user_id, None)  # eski buyurtmani tozalash
 
@@ -348,34 +359,65 @@ async def finish_order(message: Message):
         )
     )
 
-    await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
+    await message.answer(
+        "✅ Buyurtma qabul qilindi!",
+        reply_markup=ReplyKeyboardRemove()
+    )
 
 
 # ================= TOPIC WRITE GUARD =================
 @dp.message(F.chat.id == MARKET_GROUP_ID, F.text)
 async def topic_guard(message: Message, state: FSMContext):
+
+    # FSM jarayonida bo‘lsa — tegma
     if await state.get_state():
         return
 
-    if message.message_thread_id == DISCUSSION_TOPIC_ID:
-        return
-
-    if message.text.startswith("/"):
-        return
-
+    # Admin bo‘lsa — tegma
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
+    # Buyruqlarni o‘chirma
+    if message.text and message.text.startswith("/"):
+        return
+
+    # Topic bo‘lmagan joy (masalan, service message) — tegma
+    if message.message_thread_id is None:
+        return
+
+    # ✅ FAQAT MUHOKAMA CHATGA RUXSAT
+    if message.message_thread_id == ALLOWED_TOPIC_ID:
+        return
+
+    # ❌ QOLGAN TOPICLARDA — O‘CHIR + OGOHLANTIR
     try:
         await message.delete()
+
+        warn = await message.answer(
+            "⚠️ <b>Diqqat!</b>\n\n"
+            "❌ Bu bo‘limda yozish taqiqlangan.\n"
+            "✍️ Fikr va savollarni faqat\n"
+            "💬 <b>Muhokama chat</b> da yozing.",
+            parse_mode="HTML"
+        )
+
+        # ogohlantirishni 5 soniyadan keyin o‘chiramiz
+        await asyncio.sleep(5)
+        await warn.delete()
+
     except:
         pass
 
 
-
 # ================= RUN =================
+BOT_USERNAME = None
+
 async def main():
+    global BOT_USERNAME
+    me = await bot.get_me()
+    BOT_USERNAME = me.username
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
