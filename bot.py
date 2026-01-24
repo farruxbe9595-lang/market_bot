@@ -190,6 +190,7 @@ async def cancel_admin(call: CallbackQuery, state: FSMContext):
 
 # ================= ORDER FLOW (FINAL FIX) =================
 
+# ====== ORDER START ======
 @dp.message(CommandStart())
 async def start_order(message: Message, state: FSMContext):
     await state.clear()
@@ -206,39 +207,73 @@ async def start_order(message: Message, state: FSMContext):
         username=message.from_user.username
     )
 
-    await message.answer(
-        "👕 O‘lchamni tanlang:",
-        reply_markup=size_kb()
-    )
+    await message.answer("👕 O‘lchamni tanlang:", reply_markup=size_kb())
     await state.set_state(OrderState.size)
-
-@dp.message(StateFilter(OrderState.size), F.text)
+# ====== SIZE ======
+@dp.message(StateFilter(OrderState.size))
 async def order_size(message: Message, state: FSMContext):
+    text = message.text.strip()
+
+    if text == "❌ Buyurtmani bekor qilish":
+        await state.clear()
+        await message.answer("❌ Buyurtma bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+        return
+
     data = await state.get_data()
     if data.get("size"):
         return  # 🔒 qayta bosishni bloklaydi
 
-    await state.update_data(size=message.text)
+    await state.update_data(size=text)
 
-    await message.answer(
-        "📦 Nechta dona?",
-        reply_markup=quantity_kb()
-    )
+    await message.answer("📦 Nechta dona?", reply_markup=quantity_kb())
     await state.set_state(OrderState.quantity)
+# ====== SIZE ======
+@dp.message(StateFilter(OrderState.size))
+async def order_size(message: Message, state: FSMContext):
+    text = message.text.strip()
 
-@dp.message(
-    StateFilter(OrderState.quantity),
-    F.text.in_([str(i) for i in range(1, 11)])
-)
+    if text == "❌ Buyurtmani bekor qilish":
+        await state.clear()
+        await message.answer("❌ Buyurtma bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+        return
+
+    data = await state.get_data()
+    if data.get("size"):
+        return  # 🔒 qayta bosishni bloklaydi
+
+    await state.update_data(size=text)
+
+    await message.answer("📦 Nechta dona?", reply_markup=quantity_kb())
+    await state.set_state(OrderState.quantity)
+# ====== QUANTITY (BITTA HANDLER) ======
+@dp.message(StateFilter(OrderState.quantity))
 async def order_quantity(message: Message, state: FSMContext):
-    await state.update_data(quantity=message.text)
+    text = message.text.strip()
 
-    await message.answer(
-        "📱 Telefon raqamingizni yuboring:",
-        reply_markup=phone_kb()
-    )
+    if text == "❌ Buyurtmani bekor qilish":
+        await state.clear()
+        await message.answer("❌ Buyurtma bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+        return
+
+    if not text.isdigit():
+        await message.answer("❗ Faqat raqam kiriting.")
+        return
+
+    qty = int(text)
+    if not 1 <= qty <= 10:
+        await message.answer("❗ 1 dan 10 gacha kiriting.")
+        return
+
+    data = await state.get_data()
+    if data.get("quantity"):
+        return  # 🔒 qayta bosish yo‘q
+
+    await state.update_data(quantity=qty)
+
+    await message.answer("📱 Telefon raqamingizni yuboring:", reply_markup=phone_kb())
     await state.set_state(OrderState.phone)
 
+# ====== PHONE ======
 @dp.message(StateFilter(OrderState.phone), F.contact)
 async def order_finish(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -247,38 +282,17 @@ async def order_finish(message: Message, state: FSMContext):
     if not phone.startswith("+"):
         phone = f"+{phone}"
 
-    profile_url = (
-        f"https://t.me/{data['username']}"
-        if data.get("username")
-        else f"tg://user?id={data['user_id']}"
-    )
-
-    text = (
-        "🛒 <b>YANGI BUYURTMA</b>\n\n"
-        f"🆔 <b>Mahsulot:</b> {data['product_id']}\n"
-        f"👕 <b>O‘lcham:</b> {data['size']}\n"
-        f"📦 <b>Soni:</b> {data['quantity']}\n\n"
-        f"📞 <b>Tel:</b> <a href='tel:{phone}'>{phone}</a>"
-    )
-
     await bot.send_message(
         ADMIN_CHANNEL_ID,
-        text,
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)]
-            ]
-        )
+        f"🛒 YANGI BUYURTMA\n\n"
+        f"🆔 Mahsulot: {data['product_id']}\n"
+        f"👕 O‘lcham: {data['size']}\n"
+        f"📦 Soni: {data['quantity']}\n"
+        f"📞 Tel: {phone}"
     )
 
-    await message.answer(
-        "✅ Buyurtma qabul qilindi!",
-        reply_markup=ReplyKeyboardRemove()
-    )
-
+    await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
     await state.clear()
-
 
 
 
