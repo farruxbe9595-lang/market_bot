@@ -212,12 +212,13 @@ async def cancel_add_product(call: CallbackQuery, state: FSMContext):
 ORDERS: dict[int, dict] = {}
 # ================= ORDER FLOW (FINAL FIX) =================
 # ================= ORDER START =================
-@dp.message(CommandStart())
+@dp.message(CommandStart(), F.text == "/start")
 async def start_plain(message: Message):
     await message.answer(
         "🛒 Buyurtma berish uchun mahsulotdagi\n"
         "«🛒 Buyurtma berish» tugmasini bosing."
     )
+
 
 @dp.message(CommandStart(deep_link=True))
 async def start_order(message: Message):
