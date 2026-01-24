@@ -283,12 +283,17 @@ async def order_finish(message: Message, state: FSMContext):
 # ================= TOPIC WRITE GUARD =================
 @dp.message(
     F.chat.id == MARKET_GROUP_ID,
-    StateFilter(None)   # FSM YO‘Q PAYTDA GINA
+    F.text
 )
-async def topic_write_guard(message: Message):
-    if message.message_thread_id is None:
+async def topic_write_guard(message: Message, state: FSMContext):
+
+    # FSM ishlayapti — XABARNI O‘CHIRMA
+    if await state.get_state() is not None:
         return
 
+    if message.message_thread_id is None:
+        return
+    
     if message.message_thread_id == DISCUSSION_TOPIC_ID:
         return
 
@@ -297,9 +302,7 @@ async def topic_write_guard(message: Message):
 
     if await is_admin(message.chat.id, message.from_user.id):
         return
-    # FSM ishlayapti — tegma
-    if await dp.fsm.get_context(bot, message.chat.id, message.from_user.id).get_state():
-        return
+   
 
 
     # User xabarini o‘chiramiz
