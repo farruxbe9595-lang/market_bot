@@ -41,54 +41,14 @@ class AddProductState(StatesGroup):
     text = State()
     product_id = State()
 
-class OrderState(StatesGroup):
-    size = State()
-    quantity = State()
-    phone = State()
+
 
 # ================= ADMIN CHECK =================
 async def is_admin(chat_id: int, user_id: int) -> bool:
     admins = await bot.get_chat_administrators(chat_id)
     return any(a.user.id == user_id for a in admins)
 
-# ================= KEYBOARDS =================
-def admin_cancel_kb():
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_admin")]]
-    )
 
-def size_kb():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="👕 M"), KeyboardButton(text="👕 L"), KeyboardButton(text="👕 XL")],
-            [KeyboardButton(text="🧒 3–4 yosh"), KeyboardButton(text="🧒 5–6 yosh"), KeyboardButton(text="🧒 7–8 yosh")],
-            [KeyboardButton(text="🧒 9–10 yosh"), KeyboardButton(text="🧒 11–12 yosh")],
-            [KeyboardButton(text="👟 36"), KeyboardButton(text="👟 37"), KeyboardButton(text="👟 38")],
-            [KeyboardButton(text="👟 39"), KeyboardButton(text="👟 40"), KeyboardButton(text="👟 41")],
-            [KeyboardButton(text="👟 42"), KeyboardButton(text="👟 43"), KeyboardButton(text="👟 44"), KeyboardButton(text="👟 45")],
-            [KeyboardButton(text="📦 O‘lcham kerak emas")],
-            [KeyboardButton(text="❌ Buyurtmani bekor qilish")]
-        ],
-        resize_keyboard=True
-    )
-
-def quantity_kb():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=str(i)) for i in range(1, 6)],
-            [KeyboardButton(text=str(i)) for i in range(6, 11)],
-            [KeyboardButton(text="➕ Boshqa son kiritish")],
-            [KeyboardButton(text="❌ Buyurtmani bekor qilish")]
-        ],
-        resize_keyboard=True
-    )
-
-def phone_kb():
-    return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="📞 Telefon yuborish", request_contact=True)]],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
 
 # ================= ADMIN CLEANUP =================
 async def cleanup_messages(chat_id: int, msg_ids: list[int]):
@@ -198,7 +158,8 @@ async def add_product_publish(message: Message, state: FSMContext):
         inline_keyboard=[[
             InlineKeyboardButton(
                 text="🛒 Buyurtma berish",
-                url=f"https://t.me/{(await bot.me()).username}?start={product_id}"
+                callback_data=f"order:{product_id}"
+
             )
         ]]
     )
@@ -221,78 +182,102 @@ async def cancel_admin(call: CallbackQuery, state: FSMContext):
     await state.clear()
 
 # ================= ORDER FLOW (O‘ZGARMAGAN) =================
-@dp.message(CommandStart())
-async def start_order(message: Message, state: FSMContext):
-    await state.clear()
+ORDERS: dict[int, dict] = {}
+@dp.callback_query(F.data.startswith("order:"))
+async def order_start(call: CallbackQuery):
+    user_id = call.from_user.id
+    product_id = call.data.split(":", 1)[1]
 
-    if " " not in message.text:
-        await message.answer("🛒 Buyurtma berish uchun mahsulotdagi tugmani bosing.")
-        return
+    # eski buyurtma bo‘lsa — tozalaymiz
+    ORDERS[user_id] = {
+        "product_id": product_id
+    }
 
-    product_id = message.text.split(" ", 1)[1]
-    await state.update_data(product_id=product_id, user_id=message.from_user.id, username=message.from_user.username)
-
-    await message.answer("👕 O‘lchamni tanlang:", reply_markup=size_kb())
-    await state.set_state(OrderState.size)
-
-@dp.message(F.text == "❌ Buyurtmani bekor qilish")
-@dp.message(Command("cancel"))
-async def cancel_order(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer("❌ Buyurtma bekor qilindi.", reply_markup=ReplyKeyboardRemove())
-
-@dp.message(OrderState.size, F.text)
-async def order_size(message: Message, state: FSMContext):
-    await state.update_data(size=message.text)
-    await message.answer("📦 Nechta dona?", reply_markup=quantity_kb())
-    await state.set_state(OrderState.quantity)
-
-@dp.message(OrderState.quantity, F.text.in_([str(i) for i in range(1, 11)]))
-async def quantity_btn(message: Message, state: FSMContext):
-    await state.update_data(quantity=message.text)
-    await message.answer("📱 Telefon raqamingizni yuboring:", reply_markup=phone_kb())
-    await state.set_state(OrderState.phone)
-
-@dp.message(OrderState.quantity, F.text == "➕ Boshqa son kiritish")
-async def quantity_custom(message: Message):
-    await message.answer("✍️ Sonni yozing:", reply_markup=ReplyKeyboardRemove())
-
-@dp.message(OrderState.quantity, F.text)
-async def quantity_text(message: Message, state: FSMContext):
-    if not message.text.isdigit():
-        return
-    await state.update_data(quantity=message.text)
-    await message.answer("📱 Telefon raqamingizni yuboring:", reply_markup=phone_kb())
-    await state.set_state(OrderState.phone)
-
-@dp.message(OrderState.phone, F.contact)
-async def order_finish(message: Message, state: FSMContext):
-    data = await state.get_data()
-
-    profile_url = (
-        f"https://t.me/{data['username']}"
-        if data.get("username")
-        else f"tg://user?id={data['user_id']}"
-    )
-
-    text = (
-        "🛒 YANGI BUYURTMA\n\n"
-        f"🆔 Mahsulot: {data['product_id']}\n"
-        f"👕 O‘lcham: {data['size']}\n"
-        f"📦 Soni: {data['quantity']}\n\n"
-        f"📞 Tel: {message.contact.phone_number}"
-    )
-
-    await bot.send_message(
-        ADMIN_CHANNEL_ID,
-        text,
+    await call.message.answer(
+        "👕 O‘lchamni tanlang:",
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="✉️ Buyurtmachiga yozish", url=profile_url)]]
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton("👕 M", callback_data="size:M"),
+                    InlineKeyboardButton("👕 L", callback_data="size:L"),
+                    InlineKeyboardButton("👕 XL", callback_data="size:XL"),
+                ],
+                [
+                    InlineKeyboardButton("📦 O‘lcham kerak emas", callback_data="size:none")
+                ]
+            ]
         )
     )
 
+    await call.answer()
+@dp.callback_query(F.data.startswith("size:"))
+async def choose_size(call: CallbackQuery):
+    user_id = call.from_user.id
+    if user_id not in ORDERS:
+        await call.answer("Buyurtma topilmadi", show_alert=True)
+        return
+
+    size = call.data.split(":", 1)[1]
+    ORDERS[user_id]["size"] = "Kerak emas" if size == "none" else size
+
+    await call.message.edit_text(
+        "📦 Nechta dona?",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton("1", callback_data="qty:1"),
+                    InlineKeyboardButton("2", callback_data="qty:2"),
+                    InlineKeyboardButton("3", callback_data="qty:3"),
+                ],
+                [
+                    InlineKeyboardButton("4", callback_data="qty:4"),
+                    InlineKeyboardButton("5", callback_data="qty:5"),
+                ]
+            ]
+        )
+    )
+
+    await call.answer()
+@dp.callback_query(F.data.startswith("qty:"))
+async def choose_qty(call: CallbackQuery):
+    user_id = call.from_user.id
+    if user_id not in ORDERS:
+        return
+
+    ORDERS[user_id]["quantity"] = call.data.split(":", 1)[1]
+
+    await call.message.answer(
+        "📞 Telefon raqamingizni yuboring:",
+        reply_markup=ReplyKeyboardMarkup(
+            [[KeyboardButton("📞 Telefon yuborish", request_contact=True)]],
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
+    )
+
+    await call.answer()
+@dp.message(F.contact)
+async def finish_order(message: Message):
+    user_id = message.from_user.id
+    data = ORDERS.pop(user_id, None)
+
+    if not data:
+        return
+
+    phone = message.contact.phone_number
+    if not phone.startswith("+"):
+        phone = f"+{phone}"
+
+    await bot.send_message(
+        ADMIN_CHANNEL_ID,
+        f"🛒 YANGI BUYURTMA\n\n"
+        f"🆔 Mahsulot: {data['product_id']}\n"
+        f"👕 O‘lcham: {data['size']}\n"
+        f"📦 Soni: {data['quantity']}\n"
+        f"📞 Tel: {phone}"
+    )
+
     await message.answer("✅ Buyurtma qabul qilindi!", reply_markup=ReplyKeyboardRemove())
-    await state.clear()
 
 # ================= RUN =================
 async def main():
