@@ -212,16 +212,26 @@ async def cancel_add_product(call: CallbackQuery, state: FSMContext):
 ORDERS: dict[int, dict] = {}
 # ================= ORDER FLOW (FINAL FIX) =================
 # ================= ORDER START =================
+@dp.message(CommandStart())
+async def start_plain(message: Message):
+    await message.answer(
+        "🛒 Buyurtma berish uchun mahsulotdagi\n"
+        "«🛒 Buyurtma berish» tugmasini bosing."
+    )
+
 @dp.message(CommandStart(deep_link=True))
 async def start_order(message: Message):
-
     user_id = message.from_user.id
-    ORDERS.pop(user_id, None)  # eski buyurtmani tozalash
 
+    # eski buyurtmani tozalash
+    ORDERS.pop(user_id, None)
+
+    # 🔐 deep link tekshiruvi
     parts = message.text.split(maxsplit=1)
-    if len(parts) == 1:
+    if len(parts) < 2:
         await message.answer(
-            "🛒 Buyurtma berish uchun mahsulotdagi «Buyurtma berish» tugmasini bosing."
+            "🛒 Buyurtma berish uchun mahsulotdagi\n"
+            "«🛒 Buyurtma berish» tugmasini bosing."
         )
         return
 
@@ -233,33 +243,45 @@ async def start_order(message: Message):
     }
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("👕 M", callback_data="size:M"),
-         InlineKeyboardButton("👕 L", callback_data="size:L"),
-         InlineKeyboardButton("👕 XL", callback_data="size:XL")],
-
-        [InlineKeyboardButton("🧒 3–4 yosh", callback_data="size:3-4"),
-         InlineKeyboardButton("🧒 5–6 yosh", callback_data="size:5-6"),
-         InlineKeyboardButton("🧒 7–8 yosh", callback_data="size:7-8")],
-
-        [InlineKeyboardButton("🧒 9–10 yosh", callback_data="size:9-10"),
-         InlineKeyboardButton("🧒 11–12 yosh", callback_data="size:11-12")],
-
-        [InlineKeyboardButton("👟 36", callback_data="size:36"),
-         InlineKeyboardButton("👟 37", callback_data="size:37"),
-         InlineKeyboardButton("👟 38", callback_data="size:38")],
-
-        [InlineKeyboardButton("👟 39", callback_data="size:39"),
-         InlineKeyboardButton("👟 40", callback_data="size:40"),
-         InlineKeyboardButton("👟 41", callback_data="size:41")],
-
-        [InlineKeyboardButton("👟 42", callback_data="size:42"),
-         InlineKeyboardButton("👟 43", callback_data="size:43"),
-         InlineKeyboardButton("👟 44", callback_data="size:44")],
-
-        [InlineKeyboardButton("📦 O‘lcham kerak emas", callback_data="size:none")]
+        [
+            InlineKeyboardButton("👕 M", callback_data="size:M"),
+            InlineKeyboardButton("👕 L", callback_data="size:L"),
+            InlineKeyboardButton("👕 XL", callback_data="size:XL")
+        ],
+        [
+            InlineKeyboardButton("🧒 3–4 yosh", callback_data="size:3-4"),
+            InlineKeyboardButton("🧒 5–6 yosh", callback_data="size:5-6"),
+            InlineKeyboardButton("🧒 7–8 yosh", callback_data="size:7-8")
+        ],
+        [
+            InlineKeyboardButton("🧒 9–10 yosh", callback_data="size:9-10"),
+            InlineKeyboardButton("🧒 11–12 yosh", callback_data="size:11-12")
+        ],
+        [
+            InlineKeyboardButton("👟 36", callback_data="size:36"),
+            InlineKeyboardButton("👟 37", callback_data="size:37"),
+            InlineKeyboardButton("👟 38", callback_data="size:38")
+        ],
+        [
+            InlineKeyboardButton("👟 39", callback_data="size:39"),
+            InlineKeyboardButton("👟 40", callback_data="size:40"),
+            InlineKeyboardButton("👟 41", callback_data="size:41")
+        ],
+        [
+            InlineKeyboardButton("👟 42", callback_data="size:42"),
+            InlineKeyboardButton("👟 43", callback_data="size:43"),
+            InlineKeyboardButton("👟 44", callback_data="size:44")
+        ],
+        [
+            InlineKeyboardButton("📦 O‘lcham kerak emas", callback_data="size:none")
+        ]
     ])
 
-    await message.answer("👕 O‘lchamni tanlang:", reply_markup=kb)
+    await message.answer(
+        "👕 O‘lchamni tanlang:",
+        reply_markup=kb
+    )
+
 
 # ================= SIZE =================
 @dp.callback_query(F.data.startswith("size:"))
@@ -377,9 +399,10 @@ async def topic_guard(message: Message, state: FSMContext):
     if await is_admin(message.chat.id, message.from_user.id):
         return
 
-    # Buyruqlarni o‘chirma
+    # /start va boshqa buyruqlarga UMUMAN TEGMA
     if message.text and message.text.startswith("/"):
         return
+
 
     # Topic bo‘lmagan joy (masalan, service message) — tegma
     if message.message_thread_id is None:
