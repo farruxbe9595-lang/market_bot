@@ -1,7 +1,7 @@
 import asyncio
 from aiogram import Bot, Dispatcher
 
-from config import BOT_TOKEN
+from config import BOT_TOKEN, BOT_USERNAME
 from handlers.group import register_group
 
 async def main():
