@@ -81,4 +81,4 @@ async def register_private(dp, bot):
                     pass
             await asyncio.sleep(30)
 
-    dp.loop.create_task(order_timeout_watcher())
+    
