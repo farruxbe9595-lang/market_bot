@@ -1,15 +1,17 @@
-import os
+import asyncio
+from aiogram import Bot, Dispatcher
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+from config import BOT_TOKEN
+from handlers.group import register_group
 
-# @siz yoziladi
-BOT_USERNAME = "Buyurtma9020_bot"
+async def main():
+    bot = Bot(BOT_TOKEN)
+    dp = Dispatcher()
 
-# Asosiy market guruhi
-MARKET_GROUP_ID = -1001234567890
+    # GROUP handlerlarni ulaymiz
+    await register_group(dp, bot)
 
-# Muhokama topic ID
-DISCUSSION_TOPIC_ID = 1
+    await dp.start_polling(bot)
 
-# Adminlar buyurtma oladigan kanal/guruh
-ADMIN_CHANNEL_ID = -1009876543210
+if __name__ == "__main__":
+    asyncio.run(main())
