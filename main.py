@@ -2,7 +2,7 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from config import BOT_TOKEN
 from handlers.group import register_group
-from handlers.private import register_private, order_timeout_watcher
+from handlers.private import register_private
 
 async def main():
     bot = Bot(BOT_TOKEN)
