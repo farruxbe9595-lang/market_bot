@@ -1,17 +1,13 @@
-import asyncio
-from aiogram import Bot, Dispatcher
+import os
 
-from config import BOT_TOKEN
-from handlers.group import register_group
+# Bot token (Railway Variables’da BOT_TOKEN bo‘lishi shart)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-async def main():
-    bot = Bot(BOT_TOKEN)
-    dp = Dispatcher()
+# Bot username (@siz yoziladi)
+BOT_USERNAME = "Buyurtma9020_bot"
 
-    # GROUP handlerlarni ulaymiz
-    await register_group(dp, bot)
+# Market group ID
+MARKET_GROUP_ID = -1001234567890   # o‘zingniki bilan almashtir
 
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# Topic ID (masalan: Erkaklar kiyimlari)
+DISCUSSION_TOPIC_ID = 1
