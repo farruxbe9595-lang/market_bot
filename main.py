@@ -11,9 +11,7 @@ async def main():
     await register_group(dp)
     await register_private(dp, bot)
 
-    # ✅ TO‘G‘RI: asyncio orqali task yaratish
-    asyncio.create_task(order_timeout_watcher())
-
+   
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
