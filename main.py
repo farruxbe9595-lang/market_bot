@@ -10,9 +10,9 @@ async def main():
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
 
-    # HANDLERLARNI ULASH
-    await register_group(dp, bot, BOT_USERNAME)
-    await register_private(dp, bot)
+    # handlerlarni ulash (await YO‘Q)
+    register_private(dp)
+    register_group(dp, bot, BOT_USERNAME)
 
     print("✅ Bot ishga tushdi")
     await dp.start_polling(bot)
