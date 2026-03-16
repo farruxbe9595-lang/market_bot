@@ -47,22 +47,13 @@ logging.basicConfig(level=logging.INFO)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
-        ["📦 Tovar joylash"],
-        ["❌ Bekor qilish"]
+        ["📦 Tovar joylash"]
     ]
 
     await update.message.reply_text(
         "Kerakli bo'limni tanlang",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     )
-
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    await update.message.reply_text("❌ Jarayon bekor qilindi")
-
-    return ConversationHandler.END
-
 
 async def set_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -327,9 +318,7 @@ def main():
 
         },
 
-        fallbacks=[
-            MessageHandler(filters.Regex("^❌ Bekor qilish$"), cancel)
-        ]
+        fallbacks=[]
     )
 
     app.add_handler(CommandHandler("start", start))
@@ -338,7 +327,10 @@ def main():
 
     app.add_handler(conv)
 
-    app.add_handler(CallbackQueryHandler(buy, pattern="buy_"))
+    entry_points=[
+        MessageHandler(filters.Regex("^📦 Tovar joylash$"), add_product),
+        CallbackQueryHandler(buy, pattern="buy_")
+    ]
 
     app.run_polling()
 
