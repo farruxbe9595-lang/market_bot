@@ -21,7 +21,7 @@ from telegram.ext import (
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-ADMIN_PASSWORD = "MarketAdmin_2026"
+ADMIN_PASSWORD = "1234"
 
 GROUP_ID = -1003618675735
 ORDER_GROUP_ID = -1003631320685
