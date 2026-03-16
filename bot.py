@@ -46,6 +46,21 @@ logging.basicConfig(level=logging.INFO)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    # Deep link orqali kelgan bo'lsa: /start buy_001
+    if context.args:
+        data = context.args[0]
+
+        if data.startswith("buy_"):
+            pid = data.split("_")[1]
+
+            context.user_data["product"] = pid
+
+            await update.message.reply_text(
+                f"📦 Mahsulot ID: {pid}\n\n📦 Nechta olmoqchisiz?"
+            )
+
+            return ORDER_QTY
+
     keyboard = [
         ["📦 Tovar joylash"]
     ]
@@ -197,7 +212,7 @@ async def finish_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [
             InlineKeyboardButton(
                 "🛒 Buyurtma berish",
-                url=f"https://t.me/Buyurtma9020_bot?start=buy_{pid}"
+                url=f"https://t.me/{context.bot.username}?start=buy_{pid}"
             )
         ]
     ])
@@ -299,7 +314,8 @@ def main():
     conv = ConversationHandler(
 
         entry_points=[
-            MessageHandler(filters.TEXT & filters.Regex("Tovar joylash"), add_product)
+            MessageHandler(filters.TEXT & filters.Regex("Tovar joylash"), add_product),
+            CommandHandler("start", start)
         ],
 
         states={
@@ -332,8 +348,6 @@ def main():
     app.add_handler(CommandHandler("settopic", set_topic))
 
     app.add_handler(conv)
-
-    app.add_handler(CallbackQueryHandler(buy, pattern="buy_"))
 
     app.run_polling()
 
