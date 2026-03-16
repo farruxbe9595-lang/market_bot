@@ -1,185 +1,309 @@
-import asyncio
-import os
-import sys
-
-from aiogram import Bot, Dispatcher, F
-from aiogram.types import (
-    Message,
-    InlineKeyboardMarkup,
+import logging
+from telegram import (
+    Update,
     InlineKeyboardButton,
-    CallbackQuery
+    InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
+    KeyboardButton
 )
-from aiogram.filters import Command, StateFilter
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
 
-# ================= WINDOWS =================
-if sys.platform.startswith("win"):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ConversationHandler,
+    ContextTypes,
+    filters
+)
 
-# ================= CONFIG =================
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-MARKET_GROUP_ID = -1003618675735
-DISCUSSION_TOPIC_ID = 1
+TOKEN = "BOT_TOKEN"
+ADMIN_PASSWORD = "12345"
 
-bot = Bot(BOT_TOKEN)
-dp = Dispatcher()
+GROUP_ID = -1003618675735 
+ORDER_GROUP_ID = -1003631320685
 
-# ================= STATES =================
-class AddProductState(StatesGroup):
-    photo = State()
-    text = State()
-    product_id = State()
+topics = {}
+products = {}
 
-# ================= KEYBOARD =================
-def cancel_kb():
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_admin")]
+(
+ADMIN_PASS,
+SELECT_TOPIC,
+PHOTO,
+DESC,
+SIZE_TYPE,
+PRODUCT_ID,
+ORDER_QTY,
+ORDER_SIZE,
+ORDER_PHONE
+) = range(9)
+
+logging.basicConfig(level=logging.INFO)
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    keyboard = [
+        ["📦 Tovar joylash"],
+        ["❌ Bekor qilish"]
+    ]
+
+    await update.message.reply_text(
+        "Kerakli bo'limni tanlang",
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    )
+
+
+async def set_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    msg = update.message
+
+    if msg.message_thread_id is None:
+        await msg.reply_text("Bu buyruqni topic ichida yuboring")
+        return
+
+    thread_id = msg.message_thread_id
+
+    title = f"Topic {thread_id}"
+
+    topics[title] = thread_id
+
+    await msg.reply_text("Topic ro'yxatga qo'shildi")
+
+
+async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    await update.message.reply_text("Admin parolini kiriting")
+
+    return ADMIN_PASS
+
+
+async def check_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    if update.message.text != ADMIN_PASSWORD:
+        await update.message.reply_text("Parol noto'g'ri")
+        return ConversationHandler.END
+
+    keyboard = []
+
+    for name in topics:
+        keyboard.append([InlineKeyboardButton(name, callback_data=name)])
+
+    await update.message.reply_text(
+        "Topicni tanlang",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+    return SELECT_TOPIC
+
+
+async def select_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    query = update.callback_query
+    await query.answer()
+
+    context.user_data["topic"] = query.data
+
+    await query.message.reply_text("Mahsulot rasmini yuboring")
+
+    return PHOTO
+
+
+async def get_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    context.user_data["photo"] = update.message.photo[-1].file_id
+
+    await update.message.reply_text("Mahsulot tavsifini yuboring")
+
+    return DESC
+
+
+async def get_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    context.user_data["desc"] = update.message.text
+
+    keyboard = [
+        [
+            InlineKeyboardButton("👕 Kiyim", callback_data="cloth"),
+            InlineKeyboardButton("👟 Oyoq kiyim", callback_data="shoe")
         ]
+    ]
+
+    await update.message.reply_text(
+        "O'lcham turini tanlang",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ================= ADMIN CHECK =================
-async def is_admin(chat_id: int, user_id: int) -> bool:
-    admins = await bot.get_chat_administrators(chat_id)
-    return any(a.user.id == user_id for a in admins)
+    return SIZE_TYPE
 
-# ================= ADD PRODUCT =================
-@dp.message(Command("add_product"))
-async def add_product_start(message: Message, state: FSMContext):
-    if message.chat.id != MARKET_GROUP_ID:
-        return
-    if not await is_admin(message.chat.id, message.from_user.id):
-        return
-    if message.message_thread_id is None:
-        await message.answer("❗ Faqat topic ichida ishlaydi")
-        return
 
-    await state.clear()
+async def size_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    msg = await message.answer(
-        "🖼 Mahsulot rasmini yuboring:",
-        reply_markup=cancel_kb()
+    query = update.callback_query
+    await query.answer()
+
+    context.user_data["size_type"] = query.data
+
+    await query.message.reply_text("Mahsulot ID ni kiriting")
+
+    return PRODUCT_ID
+
+
+async def finish_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    pid = update.message.text
+
+    context.user_data["product_id"] = pid
+
+    products[pid] = context.user_data.copy()
+
+    topic_name = context.user_data["topic"]
+    thread_id = topics[topic_name]
+
+    caption = f"""
+📦 Mahsulot ID: {pid}
+
+{context.user_data['desc']}
+"""
+
+    button = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🛒 Buyurtma berish", callback_data=f"buy_{pid}")]
+    ])
+
+    await context.bot.send_photo(
+        chat_id=GROUP_ID,
+        photo=context.user_data["photo"],
+        caption=caption,
+        message_thread_id=thread_id,
+        reply_markup=button
     )
 
-    await state.update_data(
-        topic_id=message.message_thread_id,
-        msgs=[msg.message_id]
-    )
-    await state.set_state(AddProductState.photo)
+    await update.message.reply_text("Mahsulot topicga joylandi")
 
-# ================= PHOTO =================
-@dp.message(
-    StateFilter(AddProductState.photo),
-    F.photo | (F.document & F.document.mime_type.startswith("image/"))
-)
-async def add_product_photo(message: Message, state: FSMContext):
-    data = await state.get_data()
-    msgs = data.get("msgs", [])
-    msgs.append(message.message_id)
+    return ConversationHandler.END
 
-    if message.photo:
-        file_id = message.photo[-1].file_id
-    else:
-        file_id = message.document.file_id
 
-    msg = await message.answer(
-        "📝 Tavsifni yuboring:",
-        reply_markup=cancel_kb()
-    )
+async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    await state.update_data(
-        product_photo=file_id,
-        msgs=msgs + [msg.message_id]
-    )
-    await state.set_state(AddProductState.text)
+    query = update.callback_query
+    await query.answer()
 
-# ================= TEXT =================
-@dp.message(StateFilter(AddProductState.text), F.text)
-async def add_product_text(message: Message, state: FSMContext):
-    data = await state.get_data()
-    msgs = data["msgs"] + [message.message_id]
+    pid = query.data.split("_")[1]
 
-    msg = await message.answer(
-        "🆔 Mahsulot ID yozing:",
-        reply_markup=cancel_kb()
+    context.user_data["product"] = pid
+
+    await query.message.reply_text("Mahsulot sonini yozing")
+
+    return ORDER_QTY
+
+
+async def order_qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    context.user_data["qty"] = update.message.text
+
+    keyboard = [
+        [InlineKeyboardButton("39", callback_data="39")],
+        [InlineKeyboardButton("40", callback_data="40")],
+        [InlineKeyboardButton("41", callback_data="41")],
+        [InlineKeyboardButton("42", callback_data="42")],
+        [InlineKeyboardButton("43", callback_data="43")]
+    ]
+
+    await update.message.reply_text(
+        "O'lchamni tanlang",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-    await state.update_data(
-        product_text=message.text,
-        msgs=msgs + [msg.message_id]
-    )
-    await state.set_state(AddProductState.product_id)
+    return ORDER_SIZE
 
-# ================= PUBLISH =================
-@dp.message(StateFilter(AddProductState.product_id), F.text)
-async def add_product_publish(message: Message, state: FSMContext):
-    data = await state.get_data()
-    msgs = data.get("msgs", [])
-    msgs.append(message.message_id)   # 🔥 SHU YER MUHIM
 
-    product_id = message.text.strip()
+async def order_size(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    await bot.send_photo(
-        chat_id=MARKET_GROUP_ID,
-        message_thread_id=data["topic_id"],
-        photo=data["product_photo"],
-        caption=f"🆔 ID: {product_id}\n\n{data['product_text']}",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="🛒 Buyurtma berish", callback_data="noop")]
-            ]
-        )
+    query = update.callback_query
+    await query.answer()
+
+    context.user_data["size"] = query.data
+
+    button = KeyboardButton("📞 Telefon yuborish", request_contact=True)
+
+    await query.message.reply_text(
+        "Telefon raqamingizni yuboring",
+        reply_markup=ReplyKeyboardMarkup([[button]], resize_keyboard=True)
     )
 
-    # 🔥 ENDI XAVFSIZ TOZALASH
-    for mid in msgs:
-        try:
-            await bot.delete_message(message.chat.id, mid)
-        except:
-            pass
-
-    await state.clear()
-
-# ================= CANCEL =================
-@dp.callback_query(F.data == "cancel_admin")
-async def cancel_admin(call: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    for mid in data.get("msgs", []):
-        try:
-            await bot.delete_message(call.message.chat.id, mid)
-        except:
-            pass
-    await state.clear()
-    await call.answer("Bekor qilindi")
-
-@dp.message(F.chat.id == MARKET_GROUP_ID, F.text)
-async def topic_guard(message: Message, state: FSMContext):
-    # FSM ishlayapti — tegma
-    if await state.get_state() is not None:
-        return
-
-    # Muhokama chat — ruxsat
-    if message.message_thread_id == DISCUSSION_TOPIC_ID:
-        return
-
-    # Admin — ruxsat
-    if await is_admin(message.chat.id, message.from_user.id):
-        return
-
-    # Buyruqlarni o‘chirma
-    if message.text.startswith("/"):
-        return
-
-    try:
-        await message.delete()
-    except:
-        pass
+    return ORDER_PHONE
 
 
-# ================= RUN =================
-async def main():
-    await dp.start_polling(bot)
+async def order_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    phone = update.message.contact.phone_number
+
+    pid = context.user_data["product"]
+
+    text = f"""
+🛒 YANGI BUYURTMA
+
+Mahsulot: {pid}
+O'lcham: {context.user_data['size']}
+Soni: {context.user_data['qty']}
+
+Tel: +{phone}
+"""
+
+    await context.bot.send_message(
+        chat_id=ORDER_GROUP_ID,
+        text=text
+    )
+
+    await update.message.reply_text("Buyurtmangiz qabul qilindi")
+
+    return ConversationHandler.END
+
+
+def main():
+
+    app = Application.builder().token(TOKEN).build()
+
+    conv = ConversationHandler(
+
+        entry_points=[
+            MessageHandler(filters.Regex("📦 Tovar joylash"), add_product)
+        ],
+
+        states={
+
+            ADMIN_PASS: [MessageHandler(filters.TEXT, check_pass)],
+
+            SELECT_TOPIC: [CallbackQueryHandler(select_topic)],
+
+            PHOTO: [MessageHandler(filters.PHOTO, get_photo)],
+
+            DESC: [MessageHandler(filters.TEXT, get_desc)],
+
+            SIZE_TYPE: [CallbackQueryHandler(size_type)],
+
+            PRODUCT_ID: [MessageHandler(filters.TEXT, finish_product)],
+
+            ORDER_QTY: [MessageHandler(filters.TEXT, order_qty)],
+
+            ORDER_SIZE: [CallbackQueryHandler(order_size)],
+
+            ORDER_PHONE: [MessageHandler(filters.CONTACT, order_phone)]
+
+        },
+
+        fallbacks=[]
+    )
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("settopic", set_topic))
+
+    app.add_handler(conv)
+
+    app.add_handler(CallbackQueryHandler(buy, pattern="buy_"))
+
+    app.run_polling()
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
