@@ -328,10 +328,7 @@ def main():
 
     app.add_handler(conv)
 
-    entry_points=[
-        MessageHandler(filters.Regex("^📦 Tovar joylash$"), add_product),
-        CallbackQueryHandler(buy, pattern="buy_")
-    ]
+    app.add_handler(CallbackQueryHandler(buy, pattern="buy_"))
 
     app.run_polling()
 
