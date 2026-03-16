@@ -1,4 +1,6 @@
+import os
 import logging
+
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -18,9 +20,10 @@ from telegram.ext import (
 )
 
 TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_PASSWORD = "12345"
 
-GROUP_ID = -1003618675735 
+ADMIN_PASSWORD = "MarketAdmin_2026"
+
+GROUP_ID = -1003618675735
 ORDER_GROUP_ID = -1003631320685
 
 topics = {}
@@ -54,12 +57,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    await update.message.reply_text("❌ Jarayon bekor qilindi")
+
+    return ConversationHandler.END
+
+
 async def set_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = update.message
 
     if msg.message_thread_id is None:
-        await msg.reply_text("Bu buyruqni topic ichida yuboring")
+
+        await msg.reply_text("❗ Bu buyruqni topic ichida yuboring")
+
         return
 
     thread_id = msg.message_thread_id
@@ -68,12 +80,20 @@ async def set_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     topics[title] = thread_id
 
-    await msg.reply_text("Topic ro'yxatga qo'shildi")
+    await msg.reply_text("✅ Topic ro'yxatga qo'shildi")
 
 
 async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    await update.message.reply_text("Admin parolini kiriting")
+    if not topics:
+
+        await update.message.reply_text(
+            "❗ Avval topic ochib /settopic buyrug'ini yuboring"
+        )
+
+        return ConversationHandler.END
+
+    await update.message.reply_text("🔐 Admin parolini kiriting")
 
     return ADMIN_PASS
 
@@ -81,16 +101,21 @@ async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def check_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if update.message.text != ADMIN_PASSWORD:
-        await update.message.reply_text("Parol noto'g'ri")
+
+        await update.message.reply_text("❌ Parol noto'g'ri")
+
         return ConversationHandler.END
 
     keyboard = []
 
     for name in topics:
-        keyboard.append([InlineKeyboardButton(name, callback_data=name)])
+
+        keyboard.append(
+            [InlineKeyboardButton(name, callback_data=name)]
+        )
 
     await update.message.reply_text(
-        "Topicni tanlang",
+        "📂 Topicni tanlang",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -104,7 +129,7 @@ async def select_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["topic"] = query.data
 
-    await query.message.reply_text("Mahsulot rasmini yuboring")
+    await query.message.reply_text("📸 Mahsulot rasmini yuboring")
 
     return PHOTO
 
@@ -113,7 +138,7 @@ async def get_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["photo"] = update.message.photo[-1].file_id
 
-    await update.message.reply_text("Mahsulot tavsifini yuboring")
+    await update.message.reply_text("📝 Mahsulot tavsifini yuboring")
 
     return DESC
 
@@ -130,7 +155,7 @@ async def get_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "O'lcham turini tanlang",
+        "📏 O'lcham turini tanlang",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -144,7 +169,7 @@ async def size_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["size_type"] = query.data
 
-    await query.message.reply_text("Mahsulot ID ni kiriting")
+    await query.message.reply_text("🆔 Mahsulot ID ni kiriting")
 
     return PRODUCT_ID
 
@@ -153,17 +178,27 @@ async def finish_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     pid = update.message.text
 
+    if pid in products:
+
+        await update.message.reply_text("❗ Bu ID mavjud")
+
+        return PRODUCT_ID
+
     context.user_data["product_id"] = pid
 
     products[pid] = context.user_data.copy()
 
     topic_name = context.user_data["topic"]
+
     thread_id = topics[topic_name]
 
     caption = f"""
 📦 Mahsulot ID: {pid}
 
+📝 Tavsif:
 {context.user_data['desc']}
+
+🛒 Buyurtma berish uchun tugmani bosing
 """
 
     button = InlineKeyboardMarkup([
@@ -178,7 +213,7 @@ async def finish_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=button
     )
 
-    await update.message.reply_text("Mahsulot topicga joylandi")
+    await update.message.reply_text("✅ Mahsulot topicga joylandi")
 
     return ConversationHandler.END
 
@@ -192,7 +227,7 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["product"] = pid
 
-    await query.message.reply_text("Mahsulot sonini yozing")
+    await query.message.reply_text("📦 Mahsulot sonini yozing")
 
     return ORDER_QTY
 
@@ -210,7 +245,7 @@ async def order_qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "O'lchamni tanlang",
+        "📏 O'lchamni tanlang",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -227,7 +262,7 @@ async def order_size(update: Update, context: ContextTypes.DEFAULT_TYPE):
     button = KeyboardButton("📞 Telefon yuborish", request_contact=True)
 
     await query.message.reply_text(
-        "Telefon raqamingizni yuboring",
+        "📲 Telefon raqamingizni yuboring",
         reply_markup=ReplyKeyboardMarkup([[button]], resize_keyboard=True)
     )
 
@@ -255,7 +290,7 @@ Tel: +{phone}
         text=text
     )
 
-    await update.message.reply_text("Buyurtmangiz qabul qilindi")
+    await update.message.reply_text("✅ Buyurtmangiz qabul qilindi")
 
     return ConversationHandler.END
 
@@ -267,7 +302,7 @@ def main():
     conv = ConversationHandler(
 
         entry_points=[
-            MessageHandler(filters.Regex("📦 Tovar joylash"), add_product)
+            MessageHandler(filters.Regex("^📦 Tovar joylash$"), add_product)
         ],
 
         states={
@@ -292,10 +327,13 @@ def main():
 
         },
 
-        fallbacks=[]
+        fallbacks=[
+            MessageHandler(filters.Regex("^❌ Bekor qilish$"), cancel)
+        ]
     )
 
     app.add_handler(CommandHandler("start", start))
+
     app.add_handler(CommandHandler("settopic", set_topic))
 
     app.add_handler(conv)
