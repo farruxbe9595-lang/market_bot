@@ -294,7 +294,7 @@ def main():
 
         entry_points=[
             MessageHandler(filters.TEXT & filters.Regex("Tovar joylash"), add_product)
-        ]
+        ],
 
         states={
 
