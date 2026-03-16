@@ -51,7 +51,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "Kerakli bo'limni tanlang",
+        "📦 Tovar joylashni tanlang",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     )
 
@@ -60,18 +60,16 @@ async def set_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
 
     if msg.message_thread_id is None:
-
         await msg.reply_text("❗ Bu buyruqni topic ichida yuboring")
-
         return
 
     thread_id = msg.message_thread_id
 
-    title = f"Topic {thread_id}"
+    title = msg.chat.title
 
     topics[title] = thread_id
 
-    await msg.reply_text("✅ Topic ro'yxatga qo'shildi")
+    await msg.reply_text(f"✅ {title} topic ro'yxatga qo'shildi")
 
 
 async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
