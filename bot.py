@@ -197,7 +197,7 @@ async def finish_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [
             InlineKeyboardButton(
                 "🛒 Buyurtma berish",
-                url=f"https://t.me/{context.bot.username}?start=buy_{pid}"
+                url=f"https://t.me/Buyurtma9020_bot?start=buy_{pid}"
             )
         ]
     ])
