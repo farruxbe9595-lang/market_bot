@@ -65,11 +65,14 @@ async def set_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     thread_id = msg.message_thread_id
 
-    title = msg.chat.title
+    try:
+        topic_name = msg.reply_to_message.forum_topic_created.name
+    except:
+        topic_name = f"Topic {thread_id}"
 
-    topics[title] = thread_id
+    topics[topic_name] = thread_id
 
-    await msg.reply_text(f"✅ {title} topic ro'yxatga qo'shildi")
+    await msg.reply_text(f"✅ {topic_name} topic ro'yxatga qo'shildi")
 
 
 async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
