@@ -194,7 +194,12 @@ async def finish_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
 
     button = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🛒 Buyurtma berish", callback_data=f"buy_{pid}")]
+        [
+            InlineKeyboardButton(
+                "🛒 Buyurtma berish",
+                url=f"https://t.me/{context.bot.username}?start=buy_{pid}"
+            )
+        ]
     ])
 
     await context.bot.send_photo(
