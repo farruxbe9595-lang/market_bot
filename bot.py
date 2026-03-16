@@ -293,8 +293,8 @@ def main():
     conv = ConversationHandler(
 
         entry_points=[
-            MessageHandler(filters.Regex("^📦 Tovar joylash$"), add_product)
-        ],
+            MessageHandler(filters.TEXT & filters.Regex("Tovar joylash"), add_product)
+        ]
 
         states={
 
