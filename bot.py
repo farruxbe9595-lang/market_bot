@@ -28,7 +28,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "1234")
 GROUP_ID = -1003618675735
 ORDER_GROUP_ID = -1003631320685
 
-DATA_FILE = Path("data.json")
+DATA_FILE = Path(os.getenv("DATA_FILE_PATH", "/app/storage/data.json"))
 
 topics = {}
 products = {}
@@ -70,6 +70,8 @@ def load_data():
 
 def save_data():
     try:
+        DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+        
         data = {
             "topics": topics,
             "products": products
