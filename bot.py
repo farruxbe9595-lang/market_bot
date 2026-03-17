@@ -25,8 +25,18 @@ from telegram.ext import (
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "1234")
 
-GROUP_ID = int(os.getenv("GROUP_ID"))
-ORDER_GROUP_ID = int(os.getenv("ORDER_GROUP_ID"))
+GROUP_ID_STR = os.getenv("GROUP_ID")
+ORDER_GROUP_ID_STR = os.getenv("ORDER_GROUP_ID")
+
+if not TOKEN:
+    raise ValueError("BOT_TOKEN topilmadi")
+if not GROUP_ID_STR:
+    raise ValueError("GROUP_ID topilmadi")
+if not ORDER_GROUP_ID_STR:
+    raise ValueError("ORDER_GROUP_ID topilmadi")
+
+GROUP_ID = int(GROUP_ID_STR)
+ORDER_GROUP_ID = int(ORDER_GROUP_ID_STR)
 
 DATA_FILE = Path(os.getenv("DATA_FILE_PATH", "/app/storage/data.json"))
 
@@ -134,11 +144,15 @@ async def set_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("❗ Misol: /settopic Krasofka")
         return
 
-    topic_name = " ".join(context.args)
+    topic_name = " ".join(context.args).strip()
     thread_id = msg.message_thread_id
 
     if topic_name in topics:
-        await msg.reply_text("⚠️ Bu topic allaqachon qo'shilgan")
+        await msg.reply_text("⚠️ Bu topic nomi allaqachon qo'shilgan")
+        return
+
+    if thread_id in topics.values():
+        await msg.reply_text("⚠️ Bu topic allaqachon ro'yxatga olingan")
         return
 
     topics[topic_name] = thread_id
@@ -148,6 +162,12 @@ async def set_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.pop("topic", None)
+    context.user_data.pop("photo", None)
+    context.user_data.pop("desc", None)
+    context.user_data.pop("size_type", None)
+    context.user_data.pop("product_id", None)
+
     if not topics:
         await update.message.reply_text(
             "❗ Avval topic ochib /settopic buyrug'ini yuboring"
@@ -160,8 +180,8 @@ async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def check_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text != ADMIN_PASSWORD:
-        await update.message.reply_text("❌ Parol noto'g'ri")
-        return ConversationHandler.END
+        await update.message.reply_text("❌ Parol noto'g'ri, qayta kiriting")
+        return ADMIN_PASS
 
     keyboard = []
     for name in topics:
@@ -249,9 +269,10 @@ async def finish_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=button
     )
 
-    await update.message.reply_text("✅ Mahsulot topicga joylandi")
-    return ConversationHandler.END
-
+   await update.message.reply_text(
+        "✅ Mahsulot topicga joylandi",
+        reply_markup=ReplyKeyboardMarkup([["📦 Tovar joylash"]], resize_keyboard=True)
+    )
 
 async def order_qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
     qty = update.message.text.strip()
@@ -298,7 +319,9 @@ async def order_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.contact:
         await update.message.reply_text("❗ Pastdagi tugma orqali telefon yuboring")
         return ORDER_PHONE
-
+    if update.message.contact.user_id != update.effective_user.id:
+        await update.message.reply_text("❗ Iltimos, o'zingizning raqamingizni yuboring")
+        return ORDER_PHONE
     phone = update.message.contact.phone_number
     pid = context.user_data["product"]
 
@@ -320,7 +343,13 @@ Tel: +{phone}"""
         reply_markup=ReplyKeyboardRemove()
     )
     return ConversationHandler.END
+    
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for key in ["topic", "photo", "desc", "size_type", "product_id"]:
+        context.user_data.pop(key, None)
 
+    await update.message.reply_text("❌ Jarayon bekor qilindi")
+    return ConversationHandler.END
 
 def main():
     load_data()
@@ -339,7 +368,8 @@ def main():
             SIZE_TYPE: [CallbackQueryHandler(size_type)],
             PRODUCT_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, finish_product)],
         },
-        fallbacks=[]
+        fallbacks=[CommandHandler("cancel", cancel)],
+        allow_reentry=True
     )
 
     order_conv = ConversationHandler(
@@ -358,7 +388,7 @@ def main():
     app.add_handler(admin_conv)
     app.add_handler(order_conv)
 
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
