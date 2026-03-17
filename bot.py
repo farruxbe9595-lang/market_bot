@@ -286,18 +286,51 @@ async def order_qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["qty"] = qty
 
-    keyboard = [
-        [InlineKeyboardButton("39", callback_data="39")],
-        [InlineKeyboardButton("40", callback_data="40")],
-        [InlineKeyboardButton("41", callback_data="41")],
-        [InlineKeyboardButton("42", callback_data="42")],
-        [InlineKeyboardButton("43", callback_data="43")],
-    ]
+    pid = context.user_data["product"]
+    product = products.get(pid, {})
+    size_type = product.get("size_type", "")
+
+    if size_type == "cloth":
+        keyboard = [
+            [InlineKeyboardButton("XS", callback_data="XS"), InlineKeyboardButton("S", callback_data="S")],
+            [InlineKeyboardButton("M", callback_data="M"), InlineKeyboardButton("L", callback_data="L")],
+            [InlineKeyboardButton("XL", callback_data="XL"), InlineKeyboardButton("XXL", callback_data="XXL")],
+            [InlineKeyboardButton("3-4 yosh", callback_data="3-4 yosh")],
+            [InlineKeyboardButton("5-6 yosh", callback_data="5-6 yosh")],
+            [InlineKeyboardButton("7-8 yosh", callback_data="7-8 yosh")],
+            [InlineKeyboardButton("9-10 yosh", callback_data="9-10 yosh")],
+            [InlineKeyboardButton("11-12 yosh", callback_data="11-12 yosh")],
+            [InlineKeyboardButton("Bolalar o'lchami", callback_data="Bolalar o'lchami")]
+        ]
+        text = "👕 Kiyim o'lchamini tanlang"
+
+    elif size_type == "shoe":
+        keyboard = [
+            [InlineKeyboardButton("26", callback_data="26"), InlineKeyboardButton("27", callback_data="27")],
+            [InlineKeyboardButton("28", callback_data="28"), InlineKeyboardButton("29", callback_data="29")],
+            [InlineKeyboardButton("30", callback_data="30"), InlineKeyboardButton("31", callback_data="31")],
+            [InlineKeyboardButton("32", callback_data="32"), InlineKeyboardButton("33", callback_data="33")],
+            [InlineKeyboardButton("34", callback_data="34"), InlineKeyboardButton("35", callback_data="35")],
+            [InlineKeyboardButton("36", callback_data="36"), InlineKeyboardButton("37", callback_data="37")],
+            [InlineKeyboardButton("38", callback_data="38"), InlineKeyboardButton("39", callback_data="39")],
+            [InlineKeyboardButton("40", callback_data="40"), InlineKeyboardButton("41", callback_data="41")],
+            [InlineKeyboardButton("42", callback_data="42"), InlineKeyboardButton("43", callback_data="43")],
+            [InlineKeyboardButton("44", callback_data="44"), InlineKeyboardButton("45", callback_data="45")],
+            [InlineKeyboardButton("Bolalar o'lchami", callback_data="Bolalar o'lchami")]
+        ]
+        text = "👟 Oyoq kiyim o'lchamini tanlang"
+
+    else:
+        keyboard = [
+            [InlineKeyboardButton("Standart", callback_data="Standart")]
+        ]
+        text = "📏 O'lchamni tanlang"
 
     await update.message.reply_text(
-        "📏 O'lchamni tanlang",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
+
     return ORDER_SIZE
 
 
@@ -328,25 +361,53 @@ async def order_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     phone = update.message.contact.phone_number
     pid = context.user_data["product"]
 
-    text = f"""🛒 YANGI BUYURTMA
+    user = update.effective_user
+    buyer_id = user.id
+    buyer_name = user.full_name
+    buyer_username = user.username
 
-Mahsulot: {pid}
-O'lcham: {context.user_data['size']}
-Soni: {context.user_data['qty']}
+    product = products.get(pid, {})
+    size_type = product.get("size_type", "")
+    selected_size = context.user_data.get("size", "")
 
-Tel: +{phone}"""
+    if size_type == "cloth":
+        size_text = f"👕 {selected_size}"
+    elif size_type == "shoe":
+        size_text = f"👟 {selected_size}"
+    else:
+        size_text = f"📏 {selected_size}"
+
+    buyer_mention = f'<a href="tg://user?id={buyer_id}">{buyer_name}</a>'
+
+    text = f"""🛒 <b>YANGI BUYURTMA</b>
+
+👤 Buyurtmachi: {buyer_mention}
+🆔 Mahsulot: {pid}
+📏 O'lcham: {size_text}
+📦 Soni: {context.user_data['qty']}
+📞 Tel: +{phone}"""
+
+    if buyer_username:
+        write_url = f"https://t.me/{buyer_username}"
+    else:
+        write_url = f"tg://user?id={buyer_id}"
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✉️ Buyurtmachiga yozish", url=write_url)]
+    ])
 
     await context.bot.send_message(
         chat_id=ORDER_GROUP_ID,
         text=text,
+        parse_mode="HTML",
+        reply_markup=keyboard
     )
 
     await update.message.reply_text(
         "✅ Buyurtmangiz qabul qilindi",
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=ReplyKeyboardRemove()
     )
     return ConversationHandler.END
-
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for key in ["topic", "photo", "desc", "size_type", "product_id"]:
