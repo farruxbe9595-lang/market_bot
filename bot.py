@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 import logging
 from pathlib import Path
 
@@ -94,7 +95,51 @@ def save_data():
     except Exception as e:
         logging.error(f"Data save error: {e}")
 
+async def delete_after_delay(bot, chat_id, message_id, delay=5):
+    await asyncio.sleep(delay)
+    try:
+        await bot.delete_message(chat_id=chat_id, message_id=message_id)
+    except Exception:
+        pass
 
+
+async def restrict_topic_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.effective_message
+
+    if not msg:
+        return
+
+    if msg.chat_id != GROUP_ID:
+        return
+
+    if msg.message_thread_id is None:
+        return
+
+    if msg.from_user and msg.from_user.is_bot:
+        return
+
+    text = msg.text or msg.caption or ""
+
+    if text.startswith("/settopic"):
+        return
+
+    try:
+        await context.bot.delete_message(chat_id=msg.chat_id, message_id=msg.message_id)
+    except Exception:
+        return
+
+    try:
+        warn = await context.bot.send_message(
+            chat_id=msg.chat_id,
+            message_thread_id=msg.message_thread_id,
+            text="❗ Bu yerda faqat buyurtma berishingiz mumkin.\n\nIltimos, chat bo'limida yozing."
+        )
+        context.application.create_task(
+            delete_after_delay(context.bot, warn.chat_id, warn.message_id, 5)
+        )
+    except Exception:
+        pass
+        
 async def is_admin(user_id, context):
     try:
         member = await context.bot.get_chat_member(GROUP_ID, user_id)
@@ -195,6 +240,7 @@ async def remove_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_data()
 
     await update.message.reply_text(f"🗑 {topic_name} o'chirildi")
+    
 async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for key in ["topic", "photo", "desc", "size_type", "product_id"]:
         context.user_data.pop(key, None)
@@ -489,6 +535,13 @@ def main():
     app.add_handler(CommandHandler("removetopic", remove_topic))
     app.add_handler(admin_conv)
     app.add_handler(order_conv)
+    app.add_handler(
+        MessageHandler(
+            filters.Chat(chat_id=GROUP_ID),
+            restrict_topic_messages
+        ),
+        group=10
+    )
 
     app.run_polling(drop_pending_updates=True)
 
