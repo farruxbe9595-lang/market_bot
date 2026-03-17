@@ -43,10 +43,18 @@ ORDER_PHONE
 
 logging.basicConfig(level=logging.INFO)
 
-
+async def is_admin(user_id, context):
+    try:
+        member = await context.bot.get_chat_member(GROUP_ID, user_id)
+        return member.status in ["administrator", "creator"]
+    except:
+        return False
+        
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    # Deep link orqali kelgan bo'lsa: /start buy_001
+    user_id = update.effective_user.id
+
+    # 🔥 1. Agar deep-link orqali kelgan bo‘lsa (client)
     if context.args:
         data = context.args[0]
 
@@ -61,15 +69,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return ORDER_QTY
 
-    keyboard = [
-        ["📦 Tovar joylash"]
-    ]
+    # 🔐 2. Adminni tekshirish (ID orqali)
+    ADMIN_IDS = [123456789]  # 👈 o'zingizni telegram ID qo'ying
 
-    await update.message.reply_text(
-        "📦 Tovar joylashni tanlang",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    )
+    if user_id in ADMIN_IDS:
+        keyboard = [["📦 Tovar joylash"]]
 
+        await update.message.reply_text(
+            "📦 Admin panelga xush kelibsiz",
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        )
+    else:
+        # 👤 Oddiy user
+        await update.message.reply_text(
+            "👋 Assalomu alaykum!\n\nMahsulotni tanlab 'Buyurtma berish' tugmasini bosing."
+        )
 async def set_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = update.message
@@ -212,7 +226,7 @@ async def finish_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [
             InlineKeyboardButton(
                 "🛒 Buyurtma berish",
-                url=f"https://t.me/{context.bot.username}?start=buy_{pid}"
+                url=f"https://t.me/Buyurtma9020_bot?start=buy_{pid}"
             )
         ]
     ])
