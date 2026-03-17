@@ -9,7 +9,7 @@ from telegram import (
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
     KeyboardButton,
-    ReplyKeyboardRemove
+    ReplyKeyboardRemove,
 )
 
 from telegram.ext import (
@@ -19,7 +19,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ConversationHandler,
     ContextTypes,
-    filters
+    filters,
 )
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -52,7 +52,7 @@ products = {}
     PRODUCT_ID,
     ORDER_QTY,
     ORDER_SIZE,
-    ORDER_PHONE
+    ORDER_PHONE,
 ) = range(9)
 
 logging.basicConfig(level=logging.INFO)
@@ -86,7 +86,7 @@ def save_data():
 
         data = {
             "topics": topics,
-            "products": products
+            "products": products,
         }
 
         with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -99,7 +99,7 @@ async def is_admin(user_id, context):
     try:
         member = await context.bot.get_chat_member(GROUP_ID, user_id)
         return member.status in ["administrator", "creator"]
-    except:
+    except Exception:
         return False
 
 
@@ -123,7 +123,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [["📦 Tovar joylash"]]
         await update.message.reply_text(
             "📦 Admin panel",
-            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
         )
     else:
         await update.message.reply_text(
@@ -162,11 +162,8 @@ async def set_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.pop("topic", None)
-    context.user_data.pop("photo", None)
-    context.user_data.pop("desc", None)
-    context.user_data.pop("size_type", None)
-    context.user_data.pop("product_id", None)
+    for key in ["topic", "photo", "desc", "size_type", "product_id"]:
+        context.user_data.pop(key, None)
 
     if not topics:
         await update.message.reply_text(
@@ -189,7 +186,7 @@ async def check_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "📂 Topicni tanlang",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
     return SELECT_TOPIC
 
@@ -214,12 +211,12 @@ async def get_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [[
         InlineKeyboardButton("👕 Kiyim", callback_data="cloth"),
-        InlineKeyboardButton("👟 Oyoq kiyim", callback_data="shoe")
+        InlineKeyboardButton("👟 Oyoq kiyim", callback_data="shoe"),
     ]]
 
     await update.message.reply_text(
         "📏 O'lcham turini tanlang",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
     return SIZE_TYPE
 
@@ -240,11 +237,15 @@ async def finish_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❗ Bu ID mavjud")
         return PRODUCT_ID
 
+    topic_name = context.user_data.get("topic")
+    if not topic_name or topic_name not in topics:
+        await update.message.reply_text("❗ Topic topilmadi, qaytadan boshlang")
+        return ConversationHandler.END
+
     context.user_data["product_id"] = pid
     products[pid] = context.user_data.copy()
     save_data()
 
-    topic_name = context.user_data["topic"]
     thread_id = topics[topic_name]
 
     caption = f"""📦 Mahsulot ID: {pid}
@@ -257,7 +258,7 @@ async def finish_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     button = InlineKeyboardMarkup([[
         InlineKeyboardButton(
             "🛒 Buyurtma berish",
-            url=f"https://t.me/Buyurtma9020_bot?start=buy_{pid}"
+            url=f"https://t.me/Buyurtma9020_bot?start=buy_{pid}",
         )
     ]])
 
@@ -266,13 +267,15 @@ async def finish_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
         photo=context.user_data["photo"],
         caption=caption,
         message_thread_id=thread_id,
-        reply_markup=button
+        reply_markup=button,
     )
 
-   await update.message.reply_text(
+    await update.message.reply_text(
         "✅ Mahsulot topicga joylandi",
-        reply_markup=ReplyKeyboardMarkup([["📦 Tovar joylash"]], resize_keyboard=True)
+        reply_markup=ReplyKeyboardMarkup([["📦 Tovar joylash"]], resize_keyboard=True),
     )
+    return ConversationHandler.END
+
 
 async def order_qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
     qty = update.message.text.strip()
@@ -288,14 +291,13 @@ async def order_qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("40", callback_data="40")],
         [InlineKeyboardButton("41", callback_data="41")],
         [InlineKeyboardButton("42", callback_data="42")],
-        [InlineKeyboardButton("43", callback_data="43")]
+        [InlineKeyboardButton("43", callback_data="43")],
     ]
 
     await update.message.reply_text(
         "📏 O'lchamni tanlang",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
-
     return ORDER_SIZE
 
 
@@ -309,9 +311,8 @@ async def order_size(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.message.reply_text(
         "📲 Telefon raqamingizni yuboring",
-        reply_markup=ReplyKeyboardMarkup([[button]], resize_keyboard=True)
+        reply_markup=ReplyKeyboardMarkup([[button]], resize_keyboard=True),
     )
-
     return ORDER_PHONE
 
 
@@ -319,9 +320,11 @@ async def order_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.contact:
         await update.message.reply_text("❗ Pastdagi tugma orqali telefon yuboring")
         return ORDER_PHONE
+
     if update.message.contact.user_id != update.effective_user.id:
         await update.message.reply_text("❗ Iltimos, o'zingizning raqamingizni yuboring")
         return ORDER_PHONE
+
     phone = update.message.contact.phone_number
     pid = context.user_data["product"]
 
@@ -335,21 +338,23 @@ Tel: +{phone}"""
 
     await context.bot.send_message(
         chat_id=ORDER_GROUP_ID,
-        text=text
+        text=text,
     )
 
     await update.message.reply_text(
         "✅ Buyurtmangiz qabul qilindi",
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=ReplyKeyboardRemove(),
     )
     return ConversationHandler.END
-    
+
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for key in ["topic", "photo", "desc", "size_type", "product_id"]:
         context.user_data.pop(key, None)
 
     await update.message.reply_text("❌ Jarayon bekor qilindi")
     return ConversationHandler.END
+
 
 def main():
     load_data()
@@ -369,7 +374,7 @@ def main():
             PRODUCT_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, finish_product)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
-        allow_reentry=True
+        allow_reentry=True,
     )
 
     order_conv = ConversationHandler(
@@ -381,7 +386,7 @@ def main():
                 MessageHandler((filters.CONTACT | filters.TEXT) & ~filters.COMMAND, order_phone)
             ],
         },
-        fallbacks=[]
+        fallbacks=[],
     )
 
     app.add_handler(CommandHandler("settopic", set_topic))
