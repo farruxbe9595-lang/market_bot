@@ -25,8 +25,8 @@ from telegram.ext import (
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "1234")
 
-GROUP_ID = -1003618675735
-ORDER_GROUP_ID = -1003631320685
+GROUP_ID = int(os.getenv("GROUP_ID"))
+ORDER_GROUP_ID = int(os.getenv("ORDER_GROUP_ID"))
 
 DATA_FILE = Path(os.getenv("DATA_FILE_PATH", "/app/storage/data.json"))
 
@@ -51,6 +51,8 @@ logging.basicConfig(level=logging.INFO)
 def load_data():
     global topics, products
 
+    DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+
     if not DATA_FILE.exists():
         topics = {}
         products = {}
@@ -71,7 +73,7 @@ def load_data():
 def save_data():
     try:
         DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
-        
+
         data = {
             "topics": topics,
             "products": products
