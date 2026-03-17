@@ -160,7 +160,41 @@ async def set_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await msg.reply_text(f"✅ {topic_name} topic ro'yxatga qo'shildi")
 
+async def list_topics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update.effective_user.id, context):
+        await update.message.reply_text("❌ Siz admin emassiz")
+        return
 
+    if not topics:
+        await update.message.reply_text("📂 Topiclar yo'q")
+        return
+
+    text = "📂 Topiclar ro'yxati:\n\n"
+    for name, tid in topics.items():
+        text += f"• {name} → {tid}\n"
+
+    await update.message.reply_text(text)
+
+
+async def remove_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update.effective_user.id, context):
+        await update.message.reply_text("❌ Siz admin emassiz")
+        return
+
+    if not context.args:
+        await update.message.reply_text("❗ Misol: /removetopic Krasofka")
+        return
+
+    topic_name = " ".join(context.args).strip()
+
+    if topic_name not in topics:
+        await update.message.reply_text("❗ Bunday topic topilmadi")
+        return
+
+    topics.pop(topic_name, None)
+    save_data()
+
+    await update.message.reply_text(f"🗑 {topic_name} o'chirildi")
 async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for key in ["topic", "photo", "desc", "size_type", "product_id"]:
         context.user_data.pop(key, None)
@@ -451,6 +485,8 @@ def main():
     )
 
     app.add_handler(CommandHandler("settopic", set_topic))
+    app.add_handler(CommandHandler("listtopics", list_topics))
+    app.add_handler(CommandHandler("removetopic", remove_topic))
     app.add_handler(admin_conv)
     app.add_handler(order_conv)
 
