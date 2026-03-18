@@ -244,6 +244,17 @@ async def remove_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"🗑 {topic_name} o'chirildi")
     
+async def clear_topics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update.effective_user.id, context):
+        await update.message.reply_text("❌ Siz admin emassiz")
+        return
+
+    topics.clear()
+    save_data()
+
+    await update.message.reply_text(
+        "🗑 Barcha topiclar o'chirildi.\nEndi yangi topiclarni /settopic bilan qayta qo'shing."
+    )    
 async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for key in ["topic", "photo", "desc", "size_type", "product_id"]:
         context.user_data.pop(key, None)
