@@ -492,18 +492,11 @@ async def order_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    for key in ["topic", "photo", "desc", "size_type", "product_id"]:
+async def cancel_anytime(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for key in ["topic", "photo", "desc", "size_type", "product_id", "product", "qty", "size"]:
         context.user_data.pop(key, None)
 
     await update.message.reply_text("❌ Jarayon bekor qilindi")
-    return ConversationHandler.END
-
-async def cancel_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    for key in ["product", "qty", "size"]:
-        context.user_data.pop(key, None)
-
-    await update.message.reply_text("❌ Buyurtma jarayoni bekor qilindi")
     return ConversationHandler.END
 
 def main():
@@ -523,7 +516,7 @@ def main():
             SIZE_TYPE: [CallbackQueryHandler(size_type)],
             PRODUCT_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, finish_product)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[CommandHandler("cancel", cancel_anytime)],
         allow_reentry=True,
     )
 
@@ -536,13 +529,16 @@ def main():
                 MessageHandler((filters.CONTACT | filters.TEXT) & ~filters.COMMAND, order_phone)
             ],
         },
-        fallbacks=[CommandHandler("cancel", cancel_order)],
+        fallbacks=[CommandHandler("cancel", cancel_anytime)],
         allow_reentry=True,
     )
 
     app.add_handler(CommandHandler("settopic", set_topic))
     app.add_handler(CommandHandler("listtopics", list_topics))
     app.add_handler(CommandHandler("removetopic", remove_topic))
+    app.add_handler(CommandHandler("cleartopics", clear_topics))
+    app.add_handler(CommandHandler("cancel", cancel_anytime))
+
     app.add_handler(admin_conv)
     app.add_handler(order_conv)
     app.add_handler(
