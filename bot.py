@@ -152,6 +152,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     if context.args:
+        for key in ["product", "qty", "size"]:
+            context.user_data.pop(key, None)
+
         arg = context.args[0]
         if arg.startswith("buy_"):
             pid = arg.split("_", 1)[1]
@@ -496,6 +499,12 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Jarayon bekor qilindi")
     return ConversationHandler.END
 
+async def cancel_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for key in ["product", "qty", "size"]:
+        context.user_data.pop(key, None)
+
+    await update.message.reply_text("❌ Buyurtma jarayoni bekor qilindi")
+    return ConversationHandler.END
 
 def main():
     load_data()
@@ -527,7 +536,8 @@ def main():
                 MessageHandler((filters.CONTACT | filters.TEXT) & ~filters.COMMAND, order_phone)
             ],
         },
-        fallbacks=[],
+        fallbacks=[CommandHandler("cancel", cancel_order)],
+        allow_reentry=True,
     )
 
     app.add_handler(CommandHandler("settopic", set_topic))
